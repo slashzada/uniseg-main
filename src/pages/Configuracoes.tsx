@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { AddUserDialog } from "@/components/dialogs/AddUserDialog";
 import { EditUserDialog } from "@/components/dialogs/EditUserDialog";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
 import { vendedoresAPI, usuariosAPI, configuracoesAPI } from "@/lib/api";
 import { AddVendedorDialog } from "@/components/dialogs/AddVendedorDialog";
 import { EditVendedorDialog } from "@/components/dialogs/EditVendedorDialog";
@@ -116,8 +116,8 @@ const Configuracoes = () => {
     enabled: user?.papel === 'Admin', // Only fetch if user is Admin
   });
 
-  // Fetch Financial Config
-  const { isLoading: loadingConfig } = useQuery<ConfiguracoesGlobais>({
+  // Fetch Financial Config (Fix for TS2769)
+  const configQueryOptions: UseQueryOptions<ConfiguracoesGlobais> = {
     queryKey: ["configuracoesGlobais"],
     queryFn: configuracoesAPI.get,
     onSuccess: (data) => {
@@ -127,7 +127,9 @@ const Configuracoes = () => {
         multa_atraso: data.multa_atraso || 2,
       });
     },
-  });
+  };
+  
+  const { isLoading: loadingConfig } = useQuery(configQueryOptions);
 
   // Update Financial Config Mutation
   const updateConfigMutation = useMutation({

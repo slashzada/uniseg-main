@@ -21,6 +21,22 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
+// Define the structure of the data returned by the backend list endpoint
+interface BackendBeneficiarioResponse {
+  id: string;
+  nome: string;
+  cpf: string;
+  plano_id: string; // Original FK
+  vendedor_id: string; // Original FK
+  status: "ativo" | "inadimplente" | "inativo";
+  desde: string;
+  plano: string; // Plan name (flattened by backend controller)
+  operadora: string; // Operadora name (flattened by backend controller)
+  valorPlano: number;
+  vendedor: string; // Vendedor name (flattened by backend controller)
+  comissao: number;
+}
+
 interface Beneficiario {
   id: string;
   nome: string;
@@ -28,10 +44,10 @@ interface Beneficiario {
   plano: string;
   plano_id: string;
   operadora: string;
-  operadora_id: string;
+  operadora_id: string; // Note: This ID is not returned by the list endpoint, setting to empty string in select
   status: "ativo" | "inadimplente" | "inativo";
   desde: string; // ISO date string, but backend formats it
-  vendedorId: string; // Assuming this is the ID from the backend response
+  vendedorId: string; // Vendedor ID (mapped from vendedor_id)
   vendedor: string; // Vendedor name
   comissao: number; // Vendedor commission rate
   valorPlano: number;
@@ -73,7 +89,7 @@ const Beneficiarios = () => {
     queryFn: vendedoresAPI.getAll,
   });
 
-  const { data: beneficiarios, isLoading, refetch } = useQuery<Beneficiario[]>({
+  const { data: beneficiarios, isLoading, refetch } = useQuery<BackendBeneficiarioResponse[]>({
     queryKey: ["beneficiarios", filtro, filtroVendedor, busca],
     queryFn: () => beneficiariosAPI.getAll({ 
       status: filtro === "todos" ? undefined : filtro, 
@@ -82,12 +98,12 @@ const Beneficiarios = () => {
     }),
     select: (data) => data.map(ben => ({
       ...ben,
-      // Ensure IDs are present for editing/linking
-      plano_id: ben.plano?.id || ben.plano_id, // Assuming backend returns IDs nested or flattened
-      operadora_id: ben.plano?.operadora?.id || ben.operadora_id,
-      vendedorId: ben.vendedor?.id || ben.vendedor_id,
+      // Fixes for TS2339 and TS2551: Use the original FKs (plano_id, vendedor_id) which are present in the backend response due to 'select *'
+      plano_id: ben.plano_id, 
+      operadora_id: '', // Operadora ID is not available in this list endpoint, setting placeholder
+      vendedorId: ben.vendedor_id, 
       // Format date if necessary, but keeping it simple for now
-    })),
+    })) as Beneficiario[], // Cast to the final interface
   });
 
   const deleteMutation = useMutation({
@@ -382,12 +398,12 @@ const Beneficiarios = () => {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handleEdit(ben)}>
+                                <DropdownMenuItem onClick={() => handleEdit(ben as Beneficiario)}>
                                   <Edit className="h-4 w-4 mr-2" />
                                   Editar
                                 </DropdownMenuItem>
                                 <DropdownMenuItem 
-                                  onClick={() => handleDelete(ben)}
+                                  onClick={() => handleDelete(ben as Beneficiario)}
                                   className="text-destructive focus:text-destructive focus:bg-destructive/10"
                                 >
                                   <Trash2 className="h-4 w-4 mr-2" />
