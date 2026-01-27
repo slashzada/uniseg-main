@@ -100,6 +100,11 @@ export const beneficiariosAPI = {
   delete: (id: string) => request<{ message: string }>(`/beneficiarios/${id}`, { method: 'DELETE' }),
 };
 
+// API de Vendedores (New)
+export const vendedoresAPI = {
+  getAll: () => request<any[]>('/vendedores'),
+};
+
 // API de Financeiro
 export const financeiroAPI = {
   getAll: (params?: { status?: string; busca?: string }) => {

@@ -1,22 +1,35 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, FileText, Users, DollarSign, Star } from "lucide-react";
+import { Plus, Search, FileText, Users, Star, MoreVertical, Edit, Trash2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AddPlanoDialog } from "@/components/dialogs/AddPlanoDialog";
+import { EditPlanoDialog } from "@/components/dialogs/EditPlanoDialog";
+import { planosAPI } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useToast } from "@/hooks/use-toast";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
-const planos = [
-  { id: 1, nome: "Individual Básico", operadora: "Unimed", valor: 320, beneficiarios: 85, tipo: "Individual", popular: false },
-  { id: 2, nome: "Individual Plus", operadora: "Unimed", valor: 450, beneficiarios: 120, tipo: "Individual", popular: true },
-  { id: 3, nome: "Premium Familiar", operadora: "Bradesco Saúde", valor: 890, beneficiarios: 65, tipo: "Familiar", popular: true },
-  { id: 4, nome: "Empresarial PME", operadora: "SulAmérica", valor: 380, beneficiarios: 180, tipo: "Empresarial", popular: false },
-  { id: 5, nome: "Premium Individual", operadora: "Amil", valor: 650, beneficiarios: 95, tipo: "Individual", popular: false },
-  { id: 6, nome: "Familiar Completo", operadora: "NotreDame", valor: 1200, beneficiarios: 45, tipo: "Familiar", popular: true },
-];
+interface Plano {
+  id: string;
+  nome: string;
+  operadora: string; // Name of the operadora
+  operadora_id: string; // ID of the operadora
+  valor: number;
+  beneficiarios: number;
+  tipo: "Individual" | "Familiar" | "Empresarial";
+  popular: boolean;
+}
 
 const tipoColors = {
   Individual: "from-blue-500 to-indigo-600",
@@ -43,16 +56,61 @@ const itemVariants = {
 };
 
 const Planos = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [filtro, setFiltro] = useState("todos");
   const [busca, setBusca] = useState("");
-  const [openDialog, setOpenDialog] = useState(false);
+  const [openAddDialog, setOpenAddDialog] = useState(false);
+  const [openEditDialog, setOpenEditDialog] = useState(false);
+  const [selectedPlano, setSelectedPlano] = useState<Plano | undefined>(undefined);
+  const [openDeleteAlert, setOpenDeleteAlert] = useState(false);
+  const [planoToDelete, setPlanoToDelete] = useState<Plano | null>(null);
 
-  const planosFiltrados = planos.filter((plano) => {
-    const matchTipo = filtro === "todos" || plano.tipo.toLowerCase() === filtro.toLowerCase();
-    const matchBusca = plano.nome.toLowerCase().includes(busca.toLowerCase()) ||
-                       plano.operadora.toLowerCase().includes(busca.toLowerCase());
-    return matchTipo && matchBusca;
+  const { data: planos, isLoading, refetch } = useQuery<Plano[]>({
+    queryKey: ["planos", filtro, busca],
+    queryFn: () => planosAPI.getAll({ 
+      tipo: filtro === "todos" ? undefined : filtro, 
+      busca: busca || undefined 
+    }),
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => planosAPI.delete(id),
+    onSuccess: () => {
+      toast({
+        title: "Sucesso",
+        description: `Plano ${planoToDelete?.nome} excluído com sucesso.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["planos"] });
+      setPlanoToDelete(null);
+      setOpenDeleteAlert(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao excluir",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEdit = (plano: Plano) => {
+    setSelectedPlano(plano);
+    setOpenEditDialog(true);
+  };
+
+  const handleDelete = (plano: Plano) => {
+    setPlanoToDelete(plano);
+    setOpenDeleteAlert(true);
+  };
+
+  const confirmDelete = () => {
+    if (planoToDelete) {
+      deleteMutation.mutate(planoToDelete.id);
+    }
+  };
+
+  const planosFiltrados = planos || []; // Data fetching is handled by useQuery
 
   return (
     <AppLayout>
@@ -77,7 +135,7 @@ const Planos = () => {
           </div>
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
             <Button 
-              onClick={() => setOpenDialog(true)}
+              onClick={() => setOpenAddDialog(true)}
               className="bg-gradient-to-r from-accent to-accent/80 hover:from-accent/90 hover:to-accent/70 shadow-lg shadow-accent/25 gap-2"
             >
               <Plus className="h-4 w-4" />
@@ -121,95 +179,131 @@ const Planos = () => {
           </Card>
         </motion.div>
 
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex justify-center items-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="ml-3 text-muted-foreground">Carregando planos...</p>
+          </div>
+        )}
+
         {/* Grid */}
-        <motion.div 
-          variants={containerVariants}
-          className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
-        >
-          <AnimatePresence mode="popLayout">
-            {planosFiltrados.map((plano) => (
-              <motion.div
-                key={plano.id}
-                variants={itemVariants}
-                layout
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                whileHover={{ y: -8 }}
-                transition={{ type: "spring", stiffness: 300, damping: 24 }}
-              >
-                <Card className="group border-0 shadow-lg shadow-foreground/5 bg-card/80 backdrop-blur-sm overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl relative">
-                  {/* Popular badge */}
-                  {plano.popular && (
-                    <div className="absolute top-4 right-4 z-10">
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        className="flex items-center gap-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-semibold px-2.5 py-1 rounded-full shadow-lg"
-                      >
-                        <Star className="h-3 w-3 fill-current" />
-                        Popular
-                      </motion.div>
-                    </div>
-                  )}
-
-                  <CardHeader className="pb-4">
-                    <div className="flex items-start gap-4">
-                      <motion.div 
-                        className={cn(
-                          "h-14 w-14 rounded-2xl bg-gradient-to-br flex items-center justify-center text-white shadow-lg",
-                          tipoColors[plano.tipo as keyof typeof tipoColors]
-                        )}
-                        whileHover={{ rotate: [0, -5, 5, 0] }}
-                        transition={{ duration: 0.4 }}
-                      >
-                        <FileText className="h-7 w-7" />
-                      </motion.div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-lg group-hover:text-primary transition-colors truncate">
-                          {plano.nome}
-                        </h3>
-                        <p className="text-sm text-muted-foreground truncate">{plano.operadora}</p>
-                        <Badge
-                          variant="outline"
-                          className="mt-2 border bg-muted/50"
+        {!isLoading && planosFiltrados.length > 0 && (
+          <motion.div 
+            variants={containerVariants}
+            className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
+          >
+            <AnimatePresence mode="popLayout">
+              {planosFiltrados.map((plano) => (
+                <motion.div
+                  key={plano.id}
+                  variants={itemVariants}
+                  layout
+                  initial="hidden"
+                  animate="visible"
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  whileHover={{ y: -8 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 24 }}
+                >
+                  <Card className="group border-0 shadow-lg shadow-foreground/5 bg-card/80 backdrop-blur-sm overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl relative">
+                    {/* Popular badge */}
+                    {plano.popular && (
+                      <div className="absolute top-4 right-4 z-10">
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="flex items-center gap-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-semibold px-2.5 py-1 rounded-full shadow-lg"
                         >
-                          {plano.tipo}
-                        </Badge>
+                          <Star className="h-3 w-3 fill-current" />
+                          Popular
+                        </motion.div>
                       </div>
-                    </div>
-                  </CardHeader>
+                    )}
 
-                  <CardContent className="pt-0">
-                    {/* Price */}
-                    <div className="flex items-end gap-1 mb-6">
-                      <span className="text-3xl font-bold bg-gradient-to-r from-accent to-emerald-500 bg-clip-text text-transparent">
-                        R$ {plano.valor}
-                      </span>
-                      <span className="text-muted-foreground text-sm mb-1">/mês</span>
-                    </div>
+                    <CardHeader className="pb-4">
+                      <div className="flex items-start gap-4">
+                        <motion.div 
+                          className={cn(
+                            "h-14 w-14 rounded-2xl bg-gradient-to-br flex items-center justify-center text-white shadow-lg",
+                            tipoColors[plano.tipo]
+                          )}
+                          whileHover={{ rotate: [0, -5, 5, 0] }}
+                          transition={{ duration: 0.4 }}
+                        >
+                          <FileText className="h-7 w-7" />
+                        </motion.div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-lg group-hover:text-primary transition-colors truncate">
+                            {plano.nome}
+                          </h3>
+                          <p className="text-sm text-muted-foreground truncate">{plano.operadora}</p>
+                          <Badge
+                            variant="outline"
+                            className="mt-2 border bg-muted/50"
+                          >
+                            {plano.tipo}
+                          </Badge>
+                        </div>
+                        
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEdit(plano)}>
+                              <Edit className="h-4 w-4 mr-2" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleDelete(plano)}
+                              className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </CardHeader>
 
-                    {/* Stats */}
-                    <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/50">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">
-                          <span className="font-semibold">{plano.beneficiarios}</span>
-                          <span className="text-muted-foreground ml-1">beneficiários</span>
+                    <CardContent className="pt-0">
+                      {/* Price */}
+                      <div className="flex items-end gap-1 mb-6">
+                        <span className="text-3xl font-bold bg-gradient-to-r from-accent to-emerald-500 bg-clip-text text-transparent">
+                          R$ {plano.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                         </span>
+                        <span className="text-muted-foreground text-sm mb-1">/mês</span>
                       </div>
-                    </div>
-                  </CardContent>
 
-                  {/* Hover gradient */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                </Card>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </motion.div>
+                      {/* Stats */}
+                      <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/50">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">
+                            <span className="font-semibold">{plano.beneficiarios}</span>
+                            <span className="text-muted-foreground ml-1">beneficiários</span>
+                          </span>
+                        </div>
+                      </div>
+                    </CardContent>
 
-        {planosFiltrados.length === 0 && (
+                    {/* Hover gradient */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                  </Card>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
+        )}
+
+        {/* Empty State */}
+        {!isLoading && planosFiltrados.length === 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -224,9 +318,46 @@ const Planos = () => {
         )}
 
         <AddPlanoDialog 
-          open={openDialog} 
-          onOpenChange={setOpenDialog}
+          open={openAddDialog} 
+          onOpenChange={setOpenAddDialog}
+          onSuccess={refetch}
         />
+        
+        {selectedPlano && (
+          <EditPlanoDialog 
+            open={openEditDialog} 
+            onOpenChange={setOpenEditDialog}
+            plano={selectedPlano}
+            onSuccess={refetch}
+          />
+        )}
+
+        {/* Delete Confirmation Alert */}
+        <AlertDialog open={openDeleteAlert} onOpenChange={setOpenDeleteAlert}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta ação não pode ser desfeita. Isso excluirá permanentemente o plano 
+                <span className="font-semibold text-foreground"> {planoToDelete?.nome}</span>.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={confirmDelete}
+                disabled={deleteMutation.isPending}
+                className="bg-destructive hover:bg-destructive/90"
+              >
+                {deleteMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  "Excluir Permanentemente"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </motion.div>
     </AppLayout>
   );

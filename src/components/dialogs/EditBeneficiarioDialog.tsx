@@ -23,57 +23,71 @@ import { Loader2 } from "lucide-react";
 import { useOperadoras, usePlanos, useVendedores } from "@/hooks/use-fetch-data";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-interface AddBeneficiarioDialogProps {
+interface Beneficiario {
+  id: string;
+  nome: string;
+  cpf: string;
+  plano: string;
+  operadora: string;
+  status: string;
+  desde: string;
+  vendedorId: string;
+  valorPlano: number;
+  plano_id: string;
+  operadora_id: string;
+}
+
+interface EditBeneficiarioDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  beneficiario?: Beneficiario;
   onSuccess?: () => void;
 }
 
-export const AddBeneficiarioDialog = ({
+export const EditBeneficiarioDialog = ({
   open,
   onOpenChange,
+  beneficiario,
   onSuccess,
-}: AddBeneficiarioDialogProps) => {
+}: EditBeneficiarioDialogProps) => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { data: operadoras, isLoading: loadingOperadoras } = useOperadoras();
+  const { data: vendedores, isLoading: loadingVendedores } = useVendedores();
+  
   const [formData, setFormData] = useState({
     nome: "",
     cpf: "",
     plano_id: "",
     operadora_id: "",
     vendedor_id: "",
-    valor: "", // This field is not strictly needed for the backend API but kept for form compatibility
+    status: "",
   });
 
-  const { data: operadoras, isLoading: loadingOperadoras } = useOperadoras();
-  const { data: vendedores, isLoading: loadingVendedores } = useVendedores();
+  // Fetch plans based on selected operadora
   const { data: planos, isLoading: loadingPlanos } = usePlanos(formData.operadora_id);
 
-  // Reset plano selection if operadora changes
   useEffect(() => {
-    if (formData.plano_id && planos && !planos.some(p => p.id === formData.plano_id)) {
-      setFormData(prev => ({ ...prev, plano_id: "" }));
+    if (beneficiario) {
+      setFormData({
+        nome: beneficiario.nome,
+        cpf: beneficiario.cpf,
+        plano_id: beneficiario.plano_id,
+        operadora_id: beneficiario.operadora_id,
+        vendedor_id: beneficiario.vendedorId,
+        status: beneficiario.status,
+      });
     }
-  }, [formData.operadora_id, planos]);
+  }, [beneficiario]);
 
-  const createBeneficiarioMutation = useMutation({
-    mutationFn: beneficiariosAPI.create,
+  const updateBeneficiarioMutation = useMutation({
+    mutationFn: (data: any) => beneficiariosAPI.update(beneficiario!.id, data),
     onSuccess: () => {
       toast({
         title: "Sucesso",
-        description: "Beneficiário cadastrado com sucesso!",
+        description: "Beneficiário atualizado com sucesso!",
       });
       queryClient.invalidateQueries({ queryKey: ["beneficiarios"] });
-      
-      setFormData({
-        nome: "",
-        cpf: "",
-        plano_id: "",
-        operadora_id: "",
-        vendedor_id: "",
-        valor: "",
-      });
-
       onOpenChange(false);
       onSuccess?.();
     },
@@ -89,7 +103,7 @@ export const AddBeneficiarioDialog = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.nome || !formData.cpf || !formData.plano_id || !formData.operadora_id || !formData.vendedor_id) {
+    if (!formData.nome || !formData.cpf || !formData.plano_id || !formData.operadora_id || !formData.vendedor_id || !formData.status) {
       toast({
         title: "Erro",
         description: "Preencha todos os campos obrigatórios",
@@ -98,25 +112,24 @@ export const AddBeneficiarioDialog = ({
       return;
     }
 
-    createBeneficiarioMutation.mutate({
+    updateBeneficiarioMutation.mutate({
       nome: formData.nome,
       cpf: formData.cpf,
       plano_id: formData.plano_id,
       vendedor_id: formData.vendedor_id,
-      // Note: valor_plano is not required by the backend controller, but if it were, 
-      // we would calculate it based on the selected plano or use the form value.
+      status: formData.status,
     });
   };
 
-  const loading = createBeneficiarioMutation.isPending || loadingOperadoras || loadingVendedores || loadingPlanos;
+  const loading = updateBeneficiarioMutation.isPending || loadingOperadoras || loadingVendedores || loadingPlanos;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Cadastrar Novo Beneficiário</DialogTitle>
+          <DialogTitle>Editar Beneficiário: {beneficiario?.nome}</DialogTitle>
           <DialogDescription>
-            Preencha os dados do novo beneficiário
+            Atualize os dados do beneficiário
           </DialogDescription>
         </DialogHeader>
 
@@ -222,18 +235,23 @@ export const AddBeneficiarioDialog = ({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="valor">Valor do Plano</Label>
-              <Input
-                id="valor"
-                type="number"
-                placeholder="Ex: 450.00"
-                step="0.01"
-                value={formData.valor}
-                onChange={(e) =>
-                  setFormData({ ...formData, valor: e.target.value })
+              <Label htmlFor="status">Status *</Label>
+              <Select
+                value={formData.status}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, status: value })
                 }
                 disabled={loading}
-              />
+              >
+                <SelectTrigger id="status">
+                  <SelectValue placeholder="Selecione o status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ativo">Ativo</SelectItem>
+                  <SelectItem value="inadimplente">Inadimplente</SelectItem>
+                  <SelectItem value="inativo">Inativo</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -248,7 +266,7 @@ export const AddBeneficiarioDialog = ({
             </Button>
             <Button type="submit" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Cadastrar
+              Salvar Alterações
             </Button>
           </div>
         </motion.form>

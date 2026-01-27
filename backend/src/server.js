@@ -7,6 +7,7 @@ import planosRoutes from './routes/planos.routes.js';
 import beneficiariosRoutes from './routes/beneficiarios.routes.js';
 import financeiroRoutes from './routes/financeiro.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
+import vendedoresRoutes from './routes/vendedores.routes.js'; // Import new route
 import { errorHandler } from './middleware/errorHandler.js';
 
 dotenv.config();
@@ -34,6 +35,7 @@ app.use('/api/planos', planosRoutes);
 app.use('/api/beneficiarios', beneficiariosRoutes);
 app.use('/api/financeiro', financeiroRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/vendedores', vendedoresRoutes); // Use new route
 
 // Error handler
 app.use(errorHandler);

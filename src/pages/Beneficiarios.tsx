@@ -6,24 +6,36 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Users, User, TrendingUp, TrendingDown, UserCheck, Percent } from "lucide-react";
+import { Plus, Search, Users, User, TrendingDown, UserCheck, Percent, Loader2, MoreVertical, Edit, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AddBeneficiarioDialog } from "@/components/dialogs/AddBeneficiarioDialog";
+import { EditBeneficiarioDialog } from "@/components/dialogs/EditBeneficiarioDialog";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { beneficiariosAPI, vendedoresAPI } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
-const vendedores = [
-  { id: 1, nome: "João Vendedor", comissao: 5 },
-  { id: 2, nome: "Maria Sales", comissao: 7.5 },
-  { id: 3, nome: "Carlos Souza", comissao: 4 },
-];
-
-const beneficiarios = [
-  { id: 1, nome: "Maria Silva", cpf: "123.456.789-00", plano: "Premium Familiar", operadora: "Bradesco Saúde", status: "ativo", desde: "Jan 2024", vendedorId: 2, valorPlano: 850 },
-  { id: 2, nome: "João Santos", cpf: "234.567.890-11", plano: "Individual Plus", operadora: "Unimed", status: "ativo", desde: "Mar 2024", vendedorId: 1, valorPlano: 450 },
-  { id: 3, nome: "Ana Costa", cpf: "345.678.901-22", plano: "Empresarial PME", operadora: "SulAmérica", status: "inadimplente", desde: "Jun 2023", vendedorId: 2, valorPlano: 1200 },
-  { id: 4, nome: "Carlos Lima", cpf: "456.789.012-33", plano: "Individual Básico", operadora: "Unimed", status: "ativo", desde: "Set 2024", vendedorId: 3, valorPlano: 320 },
-  { id: 5, nome: "Paula Mendes", cpf: "567.890.123-44", plano: "Premium Individual", operadora: "Amil", status: "ativo", desde: "Nov 2024", vendedorId: 1, valorPlano: 680 },
-  { id: 6, nome: "Roberto Alves", cpf: "678.901.234-55", plano: "Individual Plus", operadora: "Unimed", status: "inativo", desde: "Fev 2023", vendedorId: 3, valorPlano: 450 },
-];
+interface Beneficiario {
+  id: string;
+  nome: string;
+  cpf: string;
+  plano: string;
+  plano_id: string;
+  operadora: string;
+  operadora_id: string;
+  status: "ativo" | "inadimplente" | "inativo";
+  desde: string; // ISO date string, but backend formats it
+  vendedorId: string; // Assuming this is the ID from the backend response
+  vendedor: string; // Vendedor name
+  comissao: number; // Vendedor commission rate
+  valorPlano: number;
+}
 
 const statusConfig = {
   ativo: { label: "Ativo", className: "bg-success/15 text-success border-success/30" },
@@ -45,25 +57,81 @@ const itemVariants = {
 };
 
 const Beneficiarios = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [filtro, setFiltro] = useState("todos");
   const [filtroVendedor, setFiltroVendedor] = useState("todos");
   const [busca, setBusca] = useState("");
-  const [openDialog, setOpenDialog] = useState(false);
+  const [openAddDialog, setOpenAddDialog] = useState(false);
+  const [openEditDialog, setOpenEditDialog] = useState(false);
+  const [selectedBeneficiario, setSelectedBeneficiario] = useState<Beneficiario | undefined>(undefined);
+  const [openDeleteAlert, setOpenDeleteAlert] = useState(false);
+  const [beneficiarioToDelete, setBeneficiarioToDelete] = useState<Beneficiario | null>(null);
 
-  const getVendedor = (vendedorId: number) => vendedores.find(v => v.id === vendedorId);
-
-  const beneficiariosFiltrados = beneficiarios.filter((ben) => {
-    const matchStatus = filtro === "todos" || ben.status === filtro;
-    const matchVendedor = filtroVendedor === "todos" || ben.vendedorId.toString() === filtroVendedor;
-    const matchBusca = ben.nome.toLowerCase().includes(busca.toLowerCase()) ||
-                       ben.cpf.includes(busca);
-    return matchStatus && matchBusca && matchVendedor;
+  const { data: vendedores, isLoading: loadingVendedores } = useQuery<any[]>({
+    queryKey: ["vendedores"],
+    queryFn: vendedoresAPI.getAll,
   });
 
+  const { data: beneficiarios, isLoading, refetch } = useQuery<Beneficiario[]>({
+    queryKey: ["beneficiarios", filtro, filtroVendedor, busca],
+    queryFn: () => beneficiariosAPI.getAll({ 
+      status: filtro === "todos" ? undefined : filtro, 
+      vendedor_id: filtroVendedor === "todos" ? undefined : filtroVendedor,
+      busca: busca || undefined
+    }),
+    select: (data) => data.map(ben => ({
+      ...ben,
+      // Ensure IDs are present for editing/linking
+      plano_id: ben.plano?.id || ben.plano_id, // Assuming backend returns IDs nested or flattened
+      operadora_id: ben.plano?.operadora?.id || ben.operadora_id,
+      vendedorId: ben.vendedor?.id || ben.vendedor_id,
+      // Format date if necessary, but keeping it simple for now
+    })),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => beneficiariosAPI.delete(id),
+    onSuccess: () => {
+      toast({
+        title: "Sucesso",
+        description: `Beneficiário ${beneficiarioToDelete?.nome} excluído com sucesso.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["beneficiarios"] });
+      setBeneficiarioToDelete(null);
+      setOpenDeleteAlert(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao excluir",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEdit = (ben: Beneficiario) => {
+    setSelectedBeneficiario(ben);
+    setOpenEditDialog(true);
+  };
+
+  const handleDelete = (ben: Beneficiario) => {
+    setBeneficiarioToDelete(ben);
+    setOpenDeleteAlert(true);
+  };
+
+  const confirmDelete = () => {
+    if (beneficiarioToDelete) {
+      deleteMutation.mutate(beneficiarioToDelete.id);
+    }
+  };
+
+  const beneficiariosData = beneficiarios || [];
+
   const stats = {
-    ativos: beneficiarios.filter(b => b.status === "ativo").length,
-    inadimplentes: beneficiarios.filter(b => b.status === "inadimplente").length,
-    inativos: beneficiarios.filter(b => b.status === "inativo").length,
+    ativos: beneficiariosData.filter(b => b.status === "ativo").length,
+    inadimplentes: beneficiariosData.filter(b => b.status === "inadimplente").length,
+    inativos: beneficiariosData.filter(b => b.status === "inativo").length,
   };
 
   return (
@@ -89,7 +157,7 @@ const Beneficiarios = () => {
           </div>
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
             <Button 
-              onClick={() => setOpenDialog(true)}
+              onClick={() => setOpenAddDialog(true)}
               className="bg-gradient-to-r from-accent to-accent/80 hover:from-accent/90 hover:to-accent/70 shadow-lg shadow-accent/25 gap-2"
             >
               <Plus className="h-4 w-4" />
@@ -168,14 +236,14 @@ const Beneficiarios = () => {
                   />
                 </div>
                 <div className="flex gap-2 flex-wrap items-center">
-                  <Select value={filtroVendedor} onValueChange={setFiltroVendedor}>
+                  <Select value={filtroVendedor} onValueChange={setFiltroVendedor} disabled={loadingVendedores}>
                     <SelectTrigger className="w-48 h-10 bg-background/50">
-                      <SelectValue placeholder="Filtrar por vendedor" />
+                      <SelectValue placeholder={loadingVendedores ? "Carregando vendedores..." : "Filtrar por vendedor"} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="todos">Todos os vendedores</SelectItem>
-                      {vendedores.map((v) => (
-                        <SelectItem key={v.id} value={v.id.toString()}>
+                      {vendedores?.map((v) => (
+                        <SelectItem key={v.id} value={v.id}>
                           {v.nome}
                         </SelectItem>
                       ))}
@@ -206,105 +274,140 @@ const Beneficiarios = () => {
           </Card>
         </motion.div>
 
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex justify-center items-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="ml-3 text-muted-foreground">Carregando beneficiários...</p>
+          </div>
+        )}
+
         {/* List */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <Card className="border-0 shadow-xl shadow-foreground/5 bg-card/80 backdrop-blur-sm overflow-hidden">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-xl font-semibold">
-                Lista de Beneficiários
-                <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  ({beneficiariosFiltrados.length} registros)
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <motion.div
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                className="divide-y divide-border/50"
-              >
-                <AnimatePresence mode="popLayout">
-                  {beneficiariosFiltrados.map((ben) => {
-                    const vendedor = getVendedor(ben.vendedorId);
-                    const comissaoValor = vendedor ? (ben.valorPlano * vendedor.comissao / 100) : 0;
-                    
-                    return (
-                      <motion.div
-                        key={ben.id}
-                        variants={itemVariants}
-                        layout
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 20 }}
-                        className="group flex items-center justify-between px-6 py-5 hover:bg-muted/30 transition-all cursor-pointer"
-                      >
-                        <div className="flex items-center gap-4">
-                          <motion.div 
-                            className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5"
-                            whileHover={{ scale: 1.1 }}
-                          >
-                            <User className="h-6 w-6 text-primary" />
-                          </motion.div>
-                          <div>
-                            <p className="font-semibold group-hover:text-primary transition-colors">{ben.nome}</p>
-                            <p className="text-sm text-muted-foreground">{ben.cpf}</p>
-                          </div>
-                        </div>
-                        <div className="text-right hidden sm:block">
-                          <p className="font-medium">{ben.plano}</p>
-                          <p className="text-sm text-muted-foreground">{ben.operadora}</p>
-                        </div>
-                        
-                        {/* Vendedor Info */}
-                        <div className="hidden lg:flex items-center gap-3">
-                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/20">
-                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/20">
-                              <span className="text-[10px] font-bold text-accent">
-                                {vendedor?.nome.split(" ").map(n => n[0]).join("").slice(0, 2)}
-                              </span>
+        {!isLoading && beneficiariosData.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <Card className="border-0 shadow-xl shadow-foreground/5 bg-card/80 backdrop-blur-sm overflow-hidden">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xl font-semibold">
+                  Lista de Beneficiários
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    ({beneficiariosData.length} registros)
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <motion.div
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="visible"
+                  className="divide-y divide-border/50"
+                >
+                  <AnimatePresence mode="popLayout">
+                    {beneficiariosData.map((ben) => {
+                      const comissaoValor = ben.valorPlano ? (ben.valorPlano * ben.comissao / 100) : 0;
+                      
+                      return (
+                        <motion.div
+                          key={ben.id}
+                          variants={itemVariants}
+                          layout
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 20 }}
+                          className="group flex items-center justify-between px-6 py-5 hover:bg-muted/30 transition-all cursor-pointer"
+                        >
+                          <div className="flex items-center gap-4">
+                            <motion.div 
+                              className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5"
+                              whileHover={{ scale: 1.1 }}
+                            >
+                              <User className="h-6 w-6 text-primary" />
+                            </motion.div>
+                            <div>
+                              <p className="font-semibold group-hover:text-primary transition-colors">{ben.nome}</p>
+                              <p className="text-sm text-muted-foreground">{ben.cpf}</p>
                             </div>
-                            <div className="text-left">
-                              <p className="text-xs font-medium text-foreground">{vendedor?.nome}</p>
-                              <div className="flex items-center gap-1 text-accent">
-                                <Percent className="h-3 w-3" />
-                                <span className="text-[10px] font-semibold">{vendedor?.comissao}%</span>
-                                <span className="text-[10px] text-muted-foreground">
-                                  (R$ {comissaoValor.toFixed(2)})
+                          </div>
+                          <div className="text-right hidden sm:block">
+                            <p className="font-medium">{ben.plano}</p>
+                            <p className="text-sm text-muted-foreground">{ben.operadora}</p>
+                          </div>
+                          
+                          {/* Vendedor Info */}
+                          <div className="hidden lg:flex items-center gap-3">
+                            <div className="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/20">
+                              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/20">
+                                <span className="text-[10px] font-bold text-accent">
+                                  {ben.vendedor.split(" ").map(n => n[0]).join("").slice(0, 2)}
                                 </span>
+                              </div>
+                              <div className="text-left">
+                                <p className="text-xs font-medium text-foreground">{ben.vendedor}</p>
+                                <div className="flex items-center gap-1 text-accent">
+                                  <Percent className="h-3 w-3" />
+                                  <span className="text-[10px] font-semibold">{ben.comissao}%</span>
+                                  <span className="text-[10px] text-muted-foreground">
+                                    (R$ {comissaoValor.toFixed(2)})
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm text-muted-foreground hidden md:block">
-                            Desde {ben.desde}
-                          </span>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "border font-medium",
-                              statusConfig[ben.status as keyof typeof statusConfig].className
-                            )}
-                          >
-                            {statusConfig[ben.status as keyof typeof statusConfig].label}
-                          </Badge>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </AnimatePresence>
-              </motion.div>
-            </CardContent>
-          </Card>
-        </motion.div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm text-muted-foreground hidden md:block">
+                              Desde {ben.desde}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "border font-medium",
+                                statusConfig[ben.status].className
+                              )}
+                            >
+                              {statusConfig[ben.status].label}
+                            </Badge>
+                            
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleEdit(ben)}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleDelete(ben)}
+                                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+                </motion.div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
-        {beneficiariosFiltrados.length === 0 && (
+        {/* Empty State */}
+        {!isLoading && beneficiariosData.length === 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -319,9 +422,46 @@ const Beneficiarios = () => {
         )}
 
         <AddBeneficiarioDialog 
-          open={openDialog} 
-          onOpenChange={setOpenDialog}
+          open={openAddDialog} 
+          onOpenChange={setOpenAddDialog}
+          onSuccess={refetch}
         />
+        
+        {selectedBeneficiario && (
+          <EditBeneficiarioDialog 
+            open={openEditDialog} 
+            onOpenChange={setOpenEditDialog}
+            beneficiario={selectedBeneficiario}
+            onSuccess={refetch}
+          />
+        )}
+
+        {/* Delete Confirmation Alert */}
+        <AlertDialog open={openDeleteAlert} onOpenChange={setOpenDeleteAlert}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta ação não pode ser desfeita. Isso excluirá permanentemente o beneficiário 
+                <span className="font-semibold text-foreground"> {beneficiarioToDelete?.nome}</span> e todos os pagamentos vinculados.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={confirmDelete}
+                disabled={deleteMutation.isPending}
+                className="bg-destructive hover:bg-destructive/90"
+              >
+                {deleteMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  "Excluir Permanentemente"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </motion.div>
     </AppLayout>
   );
