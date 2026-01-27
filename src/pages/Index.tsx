@@ -3,8 +3,19 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { RevenueChart } from "@/components/dashboard/RevenueChart";
 import { RecentPayments } from "@/components/dashboard/RecentPayments";
-import { Users, DollarSign, TrendingUp, AlertTriangle, Calendar } from "lucide-react";
+import { Users, DollarSign, TrendingUp, AlertTriangle, Calendar, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { dashboardAPI } from "@/lib/api";
+
+interface DashboardStats {
+  beneficiariosAtivos: number;
+  totalBeneficiarios: number;
+  receitaMensal: number;
+  taxaAdimplencia: number;
+  pagamentosVencidos: number;
+  totalVencido: number;
+}
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -23,6 +34,10 @@ const itemVariants = {
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const { data: stats, isLoading } = useQuery<DashboardStats>({
+    queryKey: ["dashboardStats"],
+    queryFn: dashboardAPI.getStats,
+  });
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -37,6 +52,14 @@ const Dashboard = () => {
     month: "long",
     day: "numeric",
   });
+
+  const formatCurrency = (value: number) => 
+    `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
+  const formatPercent = (value: number) => `${value.toFixed(1)}%`;
+
+  // Mocking trend data as backend doesn't provide comparison data
+  const mockTrend = (isPositive: boolean) => ({ value: 8.2, isPositive });
 
   return (
     <AppLayout>
@@ -66,39 +89,55 @@ const Dashboard = () => {
 
         {/* Metric Cards */}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            title="Beneficiários Ativos"
-            value="1.248"
-            subtitle="32 novos este mês"
-            icon={Users}
-            trend={{ value: 12.5, isPositive: true }}
-            index={0}
-          />
-          <MetricCard
-            title="Receita Mensal"
-            value="R$ 67.450"
-            subtitle="Janeiro 2026"
-            icon={DollarSign}
-            trend={{ value: 8.2, isPositive: true }}
-            variant="success"
-            index={1}
-          />
-          <MetricCard
-            title="Taxa de Adimplência"
-            value="94.3%"
-            subtitle="Meta: 95%"
-            icon={TrendingUp}
-            trend={{ value: 2.1, isPositive: true }}
-            index={2}
-          />
-          <MetricCard
-            title="Pagamentos Vencidos"
-            value="23"
-            subtitle="R$ 12.580 em atraso"
-            icon={AlertTriangle}
-            variant="destructive"
-            index={3}
-          />
+          {isLoading ? (
+            Array.from({ length: 4 }).map((_, index) => (
+              <motion.div key={index} variants={itemVariants} className="h-40 bg-card/80 rounded-2xl flex items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-primary/50" />
+              </motion.div>
+            ))
+          ) : (
+            <>
+              <motion.div variants={itemVariants}>
+                <MetricCard
+                  title="Beneficiários Ativos"
+                  value={stats?.beneficiariosAtivos.toLocaleString("pt-BR") || "0"}
+                  subtitle={`Total: ${stats?.totalBeneficiarios.toLocaleString("pt-BR") || "0"}`}
+                  icon={Users}
+                  trend={mockTrend(true)}
+                  variant="default"
+                />
+              </motion.div>
+              <motion.div variants={itemVariants}>
+                <MetricCard
+                  title="Receita Mensal"
+                  value={formatCurrency(stats?.receitaMensal || 0)}
+                  subtitle="Soma dos pagamentos pagos no mês"
+                  icon={DollarSign}
+                  trend={mockTrend(true)}
+                  variant="success"
+                />
+              </motion.div>
+              <motion.div variants={itemVariants}>
+                <MetricCard
+                  title="Taxa de Adimplência"
+                  value={formatPercent(stats?.taxaAdimplencia || 0)}
+                  subtitle="Pagamentos pagos / Total"
+                  icon={TrendingUp}
+                  trend={mockTrend(true)}
+                  variant="default"
+                />
+              </motion.div>
+              <motion.div variants={itemVariants}>
+                <MetricCard
+                  title="Pagamentos Vencidos"
+                  value={stats?.pagamentosVencidos.toLocaleString("pt-BR") || "0"}
+                  subtitle={`${formatCurrency(stats?.totalVencido || 0)} em atraso`}
+                  icon={AlertTriangle}
+                  variant="destructive"
+                />
+              </motion.div>
+            </>
+          )}
         </div>
 
         {/* Charts and Lists */}

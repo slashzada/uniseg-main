@@ -8,19 +8,39 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
+import { useQuery } from "@tanstack/react-query";
+import { dashboardAPI } from "@/lib/api";
+import { Loader2 } from "lucide-react";
 
-const data = [
-  { month: "Jan", receita: 45000, despesas: 32000 },
-  { month: "Fev", receita: 52000, despesas: 35000 },
-  { month: "Mar", receita: 48000, despesas: 33000 },
-  { month: "Abr", receita: 61000, despesas: 38000 },
-  { month: "Mai", receita: 55000, despesas: 36000 },
-  { month: "Jun", receita: 67000, despesas: 42000 },
-];
+interface RevenueData {
+  meses: string[];
+  receitas: number[];
+}
 
 export function RevenueChart() {
+  const { data, isLoading } = useQuery<RevenueData>({
+    queryKey: ["dashboardRevenue"],
+    queryFn: dashboardAPI.getRevenue,
+    initialData: { meses: [], receitas: [] },
+  });
+
+  // Combine meses and receitas into a format suitable for Recharts
+  const chartData = data.meses.map((month, index) => ({
+    month,
+    receita: data.receitas[index] || 0,
+    // Mocking despesas for visualization, as the backend only returns revenue
+    despesas: (data.receitas[index] || 0) * 0.6, 
+  }));
+
+  if (isLoading) {
+    return (
+      <Card className="border-0 shadow-xl shadow-foreground/5 bg-card/80 backdrop-blur-sm overflow-hidden h-[400px] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </Card>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -48,7 +68,7 @@ export function RevenueChart() {
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-primary" />
-                <span className="text-muted-foreground">Despesas</span>
+                <span className="text-muted-foreground">Despesas (Estimado)</span>
               </div>
             </div>
           </div>
@@ -56,7 +76,7 @@ export function RevenueChart() {
         <CardContent className="relative">
           <div className="h-[320px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data} barGap={8} barCategoryGap="20%">
+              <BarChart data={chartData} barGap={8} barCategoryGap="20%">
                 <defs>
                   <linearGradient id="receita" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="hsl(var(--success))" stopOpacity={1} />

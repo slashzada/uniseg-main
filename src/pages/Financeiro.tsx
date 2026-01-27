@@ -20,7 +20,7 @@ import {
   TrendingUp,
   TrendingDown,
   DollarSign,
-  CreditCard,
+  Loader2,
 } from "lucide-react";
 import {
   Select,
@@ -39,25 +39,18 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { financeiroAPI } from "@/lib/api";
 
 interface Pagamento {
-  id: number;
+  id: string;
   beneficiario: string;
   plano: string;
   valor: number;
   vencimento: string;
   status: "pago" | "pendente" | "vencido";
-  boletoAnexado?: string;
+  boleto_anexado?: string;
 }
-
-const pagamentosIniciais: Pagamento[] = [
-  { id: 1, beneficiario: "Maria Silva", plano: "Premium Familiar", valor: 890, vencimento: "25/01/2026", status: "pago", boletoAnexado: "boleto_maria.pdf" },
-  { id: 2, beneficiario: "João Santos", plano: "Individual Plus", valor: 450, vencimento: "28/01/2026", status: "pendente" },
-  { id: 3, beneficiario: "Ana Costa", plano: "Empresarial PME", valor: 1250, vencimento: "15/01/2026", status: "vencido" },
-  { id: 4, beneficiario: "Carlos Lima", plano: "Individual Básico", valor: 320, vencimento: "30/01/2026", status: "pendente" },
-  { id: 5, beneficiario: "Paula Mendes", plano: "Premium Individual", valor: 650, vencimento: "22/01/2026", status: "pago", boletoAnexado: "boleto_paula.pdf" },
-  { id: 6, beneficiario: "Roberto Alves", plano: "Individual Plus", valor: 450, vencimento: "10/01/2026", status: "vencido" },
-];
 
 const statusConfig = {
   pago: { 
@@ -78,7 +71,7 @@ const statusConfig = {
 };
 
 const Financeiro = () => {
-  const [pagamentos, setPagamentos] = useState<Pagamento[]>(pagamentosIniciais);
+  const queryClient = useQueryClient();
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [busca, setBusca] = useState("");
   const [modalAnexar, setModalAnexar] = useState<Pagamento | null>(null);
@@ -87,36 +80,46 @@ const Financeiro = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const pagamentosFiltrados = pagamentos.filter((pag) => {
-    const matchStatus = filtroStatus === "todos" || pag.status === filtroStatus;
-    const matchBusca = pag.beneficiario.toLowerCase().includes(busca.toLowerCase()) ||
-                       pag.plano.toLowerCase().includes(busca.toLowerCase());
-    return matchStatus && matchBusca;
+  const { data: pagamentos, isLoading } = useQuery<Pagamento[]>({
+    queryKey: ["pagamentos", filtroStatus, busca],
+    queryFn: () => financeiroAPI.getAll({ 
+      status: filtroStatus === "todos" ? undefined : filtroStatus, 
+      busca: busca || undefined 
+    }),
   });
 
-  const totais = {
-    aReceber: pagamentos.reduce((acc, p) => acc + p.valor, 0),
-    recebido: pagamentos.filter(p => p.status === "pago").reduce((acc, p) => acc + p.valor, 0),
-    pendente: pagamentos.filter(p => p.status === "pendente").reduce((acc, p) => acc + p.valor, 0),
-    vencido: pagamentos.filter(p => p.status === "vencido").reduce((acc, p) => acc + p.valor, 0),
-  };
+  const anexarBoletoMutation = useMutation({
+    mutationFn: (data: { id: string, nome: string }) => 
+      financeiroAPI.anexarBoleto(data.id, data.nome), // Assuming URL upload is handled elsewhere or mocked
+    onSuccess: () => {
+      toast({
+        title: "✅ Boleto anexado com sucesso!",
+        description: `Pagamento de ${modalAnexar?.beneficiario} marcado como pago.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["pagamentos"] });
+      queryClient.invalidateQueries({ queryKey: ["recentPayments"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboardStats"] });
+      setModalAnexar(null);
+      setArquivoSelecionado(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao anexar boleto",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleAnexarBoleto = () => {
     if (!modalAnexar || !arquivoSelecionado) return;
 
-    setPagamentos(prev => prev.map(p => 
-      p.id === modalAnexar.id 
-        ? { ...p, status: "pago" as const, boletoAnexado: arquivoSelecionado.name }
-        : p
-    ));
-
-    toast({
-      title: "✅ Boleto anexado com sucesso!",
-      description: `Pagamento de ${modalAnexar.beneficiario} marcado como pago.`,
+    // In a real scenario, we would upload the file to Supabase Storage first
+    // For now, we simulate the API call with the file name
+    anexarBoletoMutation.mutate({
+      id: modalAnexar.id,
+      nome: arquivoSelecionado.name,
     });
-
-    setModalAnexar(null);
-    setArquivoSelecionado(null);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,6 +136,15 @@ const Financeiro = () => {
     if (file) {
       setArquivoSelecionado(file);
     }
+  };
+
+  const pagamentosData = pagamentos || [];
+
+  const totais = {
+    aReceber: pagamentosData.reduce((acc, p) => acc + p.valor, 0),
+    recebido: pagamentosData.filter(p => p.status === "pago").reduce((acc, p) => acc + p.valor, 0),
+    pendente: pagamentosData.filter(p => p.status === "pendente").reduce((acc, p) => acc + p.valor, 0),
+    vencido: pagamentosData.filter(p => p.status === "vencido").reduce((acc, p) => acc + p.valor, 0),
   };
 
   return (
@@ -161,6 +173,7 @@ const Financeiro = () => {
               variant="outline" 
               className="gap-2 shadow-lg"
               onClick={() => {
+                // Mocked Export
                 toast({
                   title: "Relatório Exportado",
                   description: "Relatório de pagamentos exportado com sucesso em CSV",
@@ -181,7 +194,7 @@ const Financeiro = () => {
           className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
         >
           {[
-            { label: "A Receber (Mês)", value: totais.aReceber, icon: DollarSign, color: "primary" },
+            { label: "A Receber (Total)", value: totais.aReceber, icon: DollarSign, color: "primary" },
             { label: "Recebido", value: totais.recebido, icon: TrendingUp, color: "success" },
             { label: "Pendente", value: totais.pendente, icon: Clock, color: "warning" },
             { label: "Vencido", value: totais.vencido, icon: TrendingDown, color: "destructive" },
@@ -211,7 +224,7 @@ const Financeiro = () => {
                         stat.color === "warning" && "text-warning",
                         stat.color === "destructive" && "text-destructive",
                       )}>
-                        R$ {stat.value.toLocaleString("pt-BR")}
+                        R$ {stat.value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                       </p>
                     </div>
                     <div className={cn(
@@ -275,126 +288,134 @@ const Financeiro = () => {
               <CardTitle className="text-xl font-semibold">
                 Pagamentos
                 <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  ({pagamentosFiltrados.length} registros)
+                  ({pagamentosData.length} registros)
                 </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b bg-muted/30">
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Beneficiário
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Plano
-                      </th>
-                      <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Valor
-                      </th>
-                      <th className="px-6 py-4 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Vencimento
-                      </th>
-                      <th className="px-6 py-4 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Ações
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/50">
-                    <AnimatePresence mode="popLayout">
-                      {pagamentosFiltrados.map((pag, index) => {
-                        const StatusIcon = statusConfig[pag.status].icon;
-                        return (
-                          <motion.tr
-                            key={pag.id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            transition={{ delay: index * 0.03 }}
-                            className="group hover:bg-muted/30 transition-colors"
-                          >
-                            <td className="px-6 py-5">
-                              <p className="font-semibold group-hover:text-primary transition-colors">{pag.beneficiario}</p>
-                            </td>
-                            <td className="px-6 py-5 text-muted-foreground">
-                              {pag.plano}
-                            </td>
-                            <td className="px-6 py-5 text-right">
-                              <span className="font-bold font-tabular text-lg">
-                                R$ {pag.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                              </span>
-                            </td>
-                            <td className="px-6 py-5 text-center text-muted-foreground">
-                              {pag.vencimento}
-                            </td>
-                            <td className="px-6 py-5">
-                              <div className="flex justify-center">
-                                <Badge
-                                  variant="outline"
-                                  className={cn(
-                                    "gap-1.5 font-semibold border",
-                                    statusConfig[pag.status].className
-                                  )}
-                                >
-                                  <StatusIcon className="h-3.5 w-3.5" />
-                                  {statusConfig[pag.status].label}
-                                </Badge>
-                              </div>
-                            </td>
-                            <td className="px-6 py-5">
-                              <div className="flex justify-end gap-2">
-                                {pag.status !== "pago" ? (
-                                  <>
-                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                      <Button 
-                                        variant="default"
-                                        size="sm" 
-                                        className="h-9 gap-2 bg-success hover:bg-success/90 text-white shadow-lg shadow-success/25"
-                                        onClick={() => setModalAnexar(pag)}
-                                      >
-                                        <Paperclip className="h-4 w-4" />
-                                        <span className="hidden sm:inline">Anexar Boleto</span>
-                                      </Button>
-                                    </motion.div>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon" 
-                                      className="h-9 w-9" 
-                                      title="Enviar lembrete"
-                                      onClick={() => {
-                                        toast({
-                                          title: "Lembrete Enviado",
-                                          description: `E-mail de lembrete enviado para ${pag.beneficiario}`,
-                                        });
-                                      }}
-                                    >
-                                      <Mail className="h-4 w-4" />
-                                    </Button>
-                                  </>
-                                ) : (
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    className="h-9 gap-2"
-                                    title={pag.boletoAnexado}
+              {isLoading ? (
+                <div className="flex justify-center items-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="ml-3 text-muted-foreground">Carregando pagamentos...</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b bg-muted/30">
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Beneficiário
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Plano
+                        </th>
+                        <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Valor
+                        </th>
+                        <th className="px-6 py-4 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Vencimento
+                        </th>
+                        <th className="px-6 py-4 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Ações
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      <AnimatePresence mode="popLayout">
+                        {pagamentosData.map((pag, index) => {
+                          const StatusIcon = statusConfig[pag.status].icon;
+                          return (
+                            <motion.tr
+                              key={pag.id}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -10 }}
+                              transition={{ delay: index * 0.03 }}
+                              className="group hover:bg-muted/30 transition-colors"
+                            >
+                              <td className="px-6 py-5">
+                                <p className="font-semibold group-hover:text-primary transition-colors">{pag.beneficiario}</p>
+                              </td>
+                              <td className="px-6 py-5 text-muted-foreground">
+                                {pag.plano}
+                              </td>
+                              <td className="px-6 py-5 text-right">
+                                <span className="font-bold font-tabular text-lg">
+                                  R$ {pag.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                </span>
+                              </td>
+                              <td className="px-6 py-5 text-center text-muted-foreground">
+                                {pag.vencimento}
+                              </td>
+                              <td className="px-6 py-5">
+                                <div className="flex justify-center">
+                                  <Badge
+                                    variant="outline"
+                                    className={cn(
+                                      "gap-1.5 font-semibold border",
+                                      statusConfig[pag.status].className
+                                    )}
                                   >
-                                    <Eye className="h-4 w-4" />
-                                    <span className="hidden sm:inline">Ver Boleto</span>
-                                  </Button>
-                                )}
-                              </div>
-                            </td>
-                          </motion.tr>
-                        );
-                      })}
-                    </AnimatePresence>
-                  </tbody>
-                </table>
-              </div>
+                                    <StatusIcon className="h-3.5 w-3.5" />
+                                    {statusConfig[pag.status].label}
+                                  </Badge>
+                                </div>
+                              </td>
+                              <td className="px-6 py-5">
+                                <div className="flex justify-end gap-2">
+                                  {pag.status !== "pago" ? (
+                                    <>
+                                      <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                        <Button 
+                                          variant="default"
+                                          size="sm" 
+                                          className="h-9 gap-2 bg-success hover:bg-success/90 text-white shadow-lg shadow-success/25"
+                                          onClick={() => setModalAnexar(pag)}
+                                        >
+                                          <Paperclip className="h-4 w-4" />
+                                          <span className="hidden sm:inline">Anexar Boleto</span>
+                                        </Button>
+                                      </motion.div>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-9 w-9" 
+                                        title="Enviar lembrete"
+                                        onClick={() => {
+                                          // Mocked Email Send
+                                          toast({
+                                            title: "Lembrete Enviado",
+                                            description: `E-mail de lembrete enviado para ${pag.beneficiario}`,
+                                          });
+                                        }}
+                                      >
+                                        <Mail className="h-4 w-4" />
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      className="h-9 gap-2"
+                                      title={pag.boleto_anexado}
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                      <span className="hidden sm:inline">Ver Boleto</span>
+                                    </Button>
+                                  )}
+                                </div>
+                              </td>
+                            </motion.tr>
+                          );
+                        })}
+                      </AnimatePresence>
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -498,16 +519,21 @@ const Financeiro = () => {
                 setModalAnexar(null);
                 setArquivoSelecionado(null);
               }}
+              disabled={anexarBoletoMutation.isPending}
             >
               Cancelar
             </Button>
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
               <Button 
                 onClick={handleAnexarBoleto}
-                disabled={!arquivoSelecionado}
+                disabled={!arquivoSelecionado || anexarBoletoMutation.isPending}
                 className="bg-success hover:bg-success/90 text-white shadow-lg shadow-success/25"
               >
-                <CheckCircle2 className="h-4 w-4 mr-2" />
+                {anexarBoletoMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                )}
                 Anexar e Marcar como Pago
               </Button>
             </motion.div>
