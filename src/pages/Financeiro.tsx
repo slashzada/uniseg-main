@@ -41,6 +41,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { financeiroAPI } from "@/lib/api";
+import { exportToCSV } from "@/lib/export"; // Import the new utility
 
 interface Pagamento {
   id: string;
@@ -146,6 +147,34 @@ const Financeiro = () => {
     pendente: pagamentosData.filter(p => p.status === "pendente").reduce((acc, p) => acc + p.valor, 0),
     vencido: pagamentosData.filter(p => p.status === "vencido").reduce((acc, p) => acc + p.valor, 0),
   };
+  
+  const handleExport = () => {
+    if (pagamentosData.length === 0) {
+      toast({
+        title: "Atenção",
+        description: "Não há dados para exportar.",
+        variant: "warning",
+      });
+      return;
+    }
+
+    const headers = [
+      { key: 'id', label: 'ID' },
+      { key: 'beneficiario', label: 'Beneficiário' },
+      { key: 'plano', label: 'Plano' },
+      { key: 'valor', label: 'Valor (R$)' },
+      { key: 'vencimento', label: 'Vencimento' },
+      { key: 'status', label: 'Status' },
+      { key: 'boleto_anexado', label: 'Boleto Anexado' },
+    ];
+
+    exportToCSV(pagamentosData, headers, `relatorio_pagamentos_${new Date().toISOString().split('T')[0]}.csv`);
+    
+    toast({
+      title: "Relatório Exportado",
+      description: `Exportação de ${pagamentosData.length} pagamentos concluída com sucesso.`,
+    });
+  };
 
   return (
     <AppLayout>
@@ -172,13 +201,8 @@ const Financeiro = () => {
             <Button 
               variant="outline" 
               className="gap-2 shadow-lg"
-              onClick={() => {
-                // Mocked Export
-                toast({
-                  title: "Relatório Exportado",
-                  description: "Relatório de pagamentos exportado com sucesso em CSV",
-                });
-              }}
+              onClick={handleExport} // Use the new export function
+              disabled={isLoading || pagamentosData.length === 0}
             >
               <Download className="h-4 w-4" />
               Exportar Relatório
