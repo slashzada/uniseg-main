@@ -8,7 +8,8 @@ import beneficiariosRoutes from './routes/beneficiarios.routes.js';
 import financeiroRoutes from './routes/financeiro.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
 import vendedoresRoutes from './routes/vendedores.routes.js';
-import usuariosRoutes from './routes/usuarios.routes.js'; // Import new route
+import usuariosRoutes from './routes/usuarios.routes.js';
+import configuracoesRoutes from './routes/configuracoes.routes.js'; // Import new route
 import { errorHandler } from './middleware/errorHandler.js';
 
 dotenv.config();
@@ -37,7 +38,8 @@ app.use('/api/beneficiarios', beneficiariosRoutes);
 app.use('/api/financeiro', financeiroRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/vendedores', vendedoresRoutes);
-app.use('/api/usuarios', usuariosRoutes); // Use new route
+app.use('/api/usuarios', usuariosRoutes);
+app.use('/api/configuracoes', configuracoesRoutes); // Use new route
 
 // Error handler
 app.use(errorHandler);

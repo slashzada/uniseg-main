@@ -138,3 +138,10 @@ export const dashboardAPI = {
   getStats: () => request<any>('/dashboard/stats'),
   getRevenue: () => request<{ meses: string[]; receitas: number[] }>('/dashboard/revenue'),
 };
+
+// API de Configurações Globais (New)
+export const configuracoesAPI = {
+  get: () => request<any>('/configuracoes'),
+  update: (data: { taxa_admin?: number; dias_carencia?: number; multa_atraso?: number }) => 
+    request<any>('/configuracoes', { method: 'PUT', body: JSON.stringify(data) }),
+};

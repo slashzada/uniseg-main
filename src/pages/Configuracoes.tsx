@@ -25,7 +25,7 @@ import { toast } from "sonner";
 import { AddUserDialog } from "@/components/dialogs/AddUserDialog";
 import { EditUserDialog } from "@/components/dialogs/EditUserDialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { vendedoresAPI, usuariosAPI } from "@/lib/api";
+import { vendedoresAPI, usuariosAPI, configuracoesAPI } from "@/lib/api";
 import { AddVendedorDialog } from "@/components/dialogs/AddVendedorDialog";
 import { EditVendedorDialog } from "@/components/dialogs/EditVendedorDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -45,6 +45,12 @@ interface Usuario {
   nome: string;
   email: string;
   papel: "Admin" | "Financeiro" | "Vendedor";
+}
+
+interface ConfiguracoesGlobais {
+  taxa_admin: number;
+  dias_carencia: number;
+  multa_atraso: number;
 }
 
 const papelConfig = {
@@ -84,6 +90,12 @@ const Configuracoes = () => {
   const [openDeleteUserAlert, setOpenDeleteUserAlert] = useState(false);
   const [userToDelete, setUserToDelete] = useState<Usuario | null>(null);
 
+  // Financial Config State
+  const [financialConfig, setFinancialConfig] = useState<ConfiguracoesGlobais>({
+    taxa_admin: 5,
+    dias_carencia: 30,
+    multa_atraso: 2,
+  });
 
   // Fetch Vendedores
   const { data: vendedores, isLoading: loadingVendedores, refetch: refetchVendedores } = useQuery<Vendedor[]>({
@@ -103,6 +115,35 @@ const Configuracoes = () => {
     queryFn: usuariosAPI.getAll,
     enabled: user?.papel === 'Admin', // Only fetch if user is Admin
   });
+
+  // Fetch Financial Config
+  const { isLoading: loadingConfig } = useQuery<ConfiguracoesGlobais>({
+    queryKey: ["configuracoesGlobais"],
+    queryFn: configuracoesAPI.get,
+    onSuccess: (data) => {
+      setFinancialConfig({
+        taxa_admin: data.taxa_admin || 5,
+        dias_carencia: data.dias_carencia || 30,
+        multa_atraso: data.multa_atraso || 2,
+      });
+    },
+  });
+
+  // Update Financial Config Mutation
+  const updateConfigMutation = useMutation({
+    mutationFn: configuracoesAPI.update,
+    onSuccess: () => {
+      toast.success("Parâmetros financeiros salvos com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["configuracoesGlobais"] });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Erro ao salvar parâmetros financeiros. Verifique se você tem permissão de Admin.");
+    },
+  });
+
+  const handleSaveFinancialConfig = () => {
+    updateConfigMutation.mutate(financialConfig);
+  };
 
   // Vendedores Mutations
   const deleteVendedorMutation = useMutation({
@@ -182,6 +223,7 @@ const Configuracoes = () => {
 
   const vendedoresData = vendedores || [];
   const usuariosData = usuarios || [];
+  const isSavingConfig = updateConfigMutation.isPending;
 
   return (
     <AppLayout>
@@ -337,7 +379,7 @@ const Configuracoes = () => {
             </Card>
           </motion.div>
 
-          {/* Financial Settings (Mocked) */}
+          {/* Financial Settings */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -358,21 +400,58 @@ const Configuracoes = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="taxa-admin">Taxa Administrativa (%)</Label>
-                  <Input id="taxa-admin" type="number" defaultValue="5" className="bg-background/50" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="dias-carencia">Dias de Carência</Label>
-                  <Input id="dias-carencia" type="number" defaultValue="30" className="bg-background/50" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="multa-atraso">Multa por Atraso (%)</Label>
-                  <Input id="multa-atraso" type="number" defaultValue="2" className="bg-background/50" />
-                </div>
-                <Button className="w-full bg-gradient-to-r from-success to-success/80">
-                  Salvar Alterações
-                </Button>
+                {loadingConfig ? (
+                  <div className="flex justify-center items-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-success" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="taxa-admin">Taxa Administrativa (%)</Label>
+                      <Input 
+                        id="taxa-admin" 
+                        type="number" 
+                        value={financialConfig.taxa_admin}
+                        onChange={(e) => setFinancialConfig({ ...financialConfig, taxa_admin: parseFloat(e.target.value) || 0 })}
+                        className="bg-background/50" 
+                        step="0.01"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="dias-carencia">Dias de Carência</Label>
+                      <Input 
+                        id="dias-carencia" 
+                        type="number" 
+                        value={financialConfig.dias_carencia}
+                        onChange={(e) => setFinancialConfig({ ...financialConfig, dias_carencia: parseInt(e.target.value) || 0 })}
+                        className="bg-background/50" 
+                        step="1"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="multa-atraso">Multa por Atraso (%)</Label>
+                      <Input 
+                        id="multa-atraso" 
+                        type="number" 
+                        value={financialConfig.multa_atraso}
+                        onChange={(e) => setFinancialConfig({ ...financialConfig, multa_atraso: parseFloat(e.target.value) || 0 })}
+                        className="bg-background/50" 
+                        step="0.01"
+                      />
+                    </div>
+                    <Button 
+                      className="w-full bg-gradient-to-r from-success to-success/80"
+                      onClick={handleSaveFinancialConfig}
+                      disabled={isSavingConfig}
+                    >
+                      {isSavingConfig ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        "Salvar Alterações"
+                      )}
+                    </Button>
+                  </>
+                )}
               </CardContent>
             </Card>
           </motion.div>
