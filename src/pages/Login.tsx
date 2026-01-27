@@ -265,7 +265,7 @@ const Login = () => {
           </motion.div>
 
           <p className="text-center text-sm text-muted-foreground mt-8">
-            © 2026 Uniseguros. Todos os direitos reservados.
+            © 2026 Uniseguros. Todos os direitos reservados a Eduardo Passos
           </p>
         </div>
       </div>
