@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { usuariosAPI } from "@/lib/api";
 
 interface AddUserDialogProps {
   open: boolean;
@@ -31,8 +33,8 @@ export const AddUserDialog = ({
   onOpenChange,
   onSuccess,
 }: AddUserDialogProps) => {
+  const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     nome: "",
     email: "",
@@ -40,7 +42,35 @@ export const AddUserDialog = ({
     senha: "",
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const createMutation = useMutation({
+    mutationFn: usuariosAPI.create,
+    onSuccess: () => {
+      toast({
+        title: "Sucesso",
+        description: "Usuário cadastrado com sucesso!",
+      });
+      queryClient.invalidateQueries({ queryKey: ["usuarios"] });
+      
+      setFormData({
+        nome: "",
+        email: "",
+        papel: "",
+        senha: "",
+      });
+
+      onOpenChange(false);
+      onSuccess?.();
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.nome || !formData.email || !formData.papel || !formData.senha) {
@@ -52,35 +82,15 @@ export const AddUserDialog = ({
       return;
     }
 
-    setLoading(true);
-    try {
-      // Simular requisição à API
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      toast({
-        title: "Sucesso",
-        description: "Usuário cadastrado com sucesso!",
-      });
-
-      setFormData({
-        nome: "",
-        email: "",
-        papel: "",
-        senha: "",
-      });
-
-      onOpenChange(false);
-      onSuccess?.();
-    } catch (error) {
-      toast({
-        title: "Erro",
-        description: error instanceof Error ? error.message : "Erro ao cadastrar usuário",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
+    createMutation.mutate({
+      nome: formData.nome,
+      email: formData.email,
+      papel: formData.papel,
+      senha: formData.senha,
+    });
   };
+
+  const loading = createMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

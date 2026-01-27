@@ -10,6 +10,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { vendedoresAPI } from "@/lib/api";
+import { Loader2, Percent } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Select,
   SelectContent,
@@ -17,59 +21,56 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { usuariosAPI } from "@/lib/api";
 
-interface Usuario {
+interface Vendedor {
   id: string;
   nome: string;
   email: string;
-  papel: string;
+  comissao: number;
+  status: "ativo" | "inativo";
 }
 
-interface EditUserDialogProps {
+interface EditVendedorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  usuario?: Usuario;
+  vendedor?: Vendedor;
   onSuccess?: () => void;
 }
 
-export const EditUserDialog = ({
+export const EditVendedorDialog = ({
   open,
   onOpenChange,
-  usuario,
+  vendedor,
   onSuccess,
-}: EditUserDialogProps) => {
+}: EditVendedorDialogProps) => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     nome: "",
     email: "",
-    papel: "",
-    senha: "", // Optional password change
+    comissao: "",
+    status: "",
   });
 
   useEffect(() => {
-    if (usuario) {
+    if (vendedor) {
       setFormData({
-        nome: usuario.nome,
-        email: usuario.email,
-        papel: usuario.papel,
-        senha: "",
+        nome: vendedor.nome,
+        email: vendedor.email,
+        comissao: vendedor.comissao.toString(),
+        status: vendedor.status,
       });
     }
-  }, [usuario]);
+  }, [vendedor]);
 
   const updateMutation = useMutation({
-    mutationFn: (data: any) => usuariosAPI.update(usuario!.id, data),
+    mutationFn: (data: any) => vendedoresAPI.update(vendedor!.id, data),
     onSuccess: () => {
       toast({
         title: "Sucesso",
-        description: "Usuário atualizado com sucesso!",
+        description: "Vendedor atualizado com sucesso!",
       });
-      queryClient.invalidateQueries({ queryKey: ["usuarios"] });
+      queryClient.invalidateQueries({ queryKey: ["vendedores"] });
       onOpenChange(false);
       onSuccess?.();
     },
@@ -85,7 +86,7 @@ export const EditUserDialog = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.nome || !formData.email || !formData.papel) {
+    if (!formData.nome || !formData.email || !formData.comissao || !formData.status) {
       toast({
         title: "Erro",
         description: "Preencha todos os campos obrigatórios",
@@ -94,17 +95,12 @@ export const EditUserDialog = ({
       return;
     }
 
-    const updates: any = {
+    updateMutation.mutate({
       nome: formData.nome,
       email: formData.email,
-      papel: formData.papel,
-    };
-
-    if (formData.senha) {
-      updates.senha = formData.senha;
-    }
-
-    updateMutation.mutate(updates);
+      comissao: parseFloat(formData.comissao),
+      status: formData.status,
+    });
   };
 
   const loading = updateMutation.isPending;
@@ -113,9 +109,9 @@ export const EditUserDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Editar Usuário</DialogTitle>
+          <DialogTitle>Editar Vendedor: {vendedor?.nome}</DialogTitle>
           <DialogDescription>
-            Atualize os dados do usuário
+            Atualize os dados e a comissão do vendedor
           </DialogDescription>
         </DialogHeader>
 
@@ -152,38 +148,44 @@ export const EditUserDialog = ({
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="papel">Papel *</Label>
-            <Select
-              value={formData.papel}
-              onValueChange={(value) =>
-                setFormData({ ...formData, papel: value })
-              }
-              disabled={loading}
-            >
-              <SelectTrigger id="papel">
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Admin">Admin</SelectItem>
-                <SelectItem value="Financeiro">Financeiro</SelectItem>
-                <SelectItem value="Vendedor">Vendedor</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="senha">Nova Senha (Opcional)</Label>
-            <Input
-              id="senha"
-              type="password"
-              placeholder="Deixe em branco para manter a senha atual"
-              value={formData.senha}
-              onChange={(e) =>
-                setFormData({ ...formData, senha: e.target.value })
-              }
-              disabled={loading}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="comissao" className="flex items-center gap-2">
+                <Percent className="h-4 w-4 text-success" />
+                Comissão (%) *
+              </Label>
+              <Input
+                id="comissao"
+                type="number"
+                step="0.5"
+                min="0"
+                max="100"
+                placeholder="Ex: 5.0"
+                value={formData.comissao}
+                onChange={(e) => setFormData({ ...formData, comissao: e.target.value })}
+                disabled={loading}
+                className="text-lg font-semibold"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="status">Status *</Label>
+              <Select
+                value={formData.status}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, status: value })
+                }
+                disabled={loading}
+              >
+                <SelectTrigger id="status">
+                  <SelectValue placeholder="Selecione o status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ativo">Ativo</SelectItem>
+                  <SelectItem value="inativo">Inativo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="flex gap-3 justify-end pt-4">

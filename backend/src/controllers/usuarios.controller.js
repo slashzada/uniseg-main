@@ -1,11 +1,13 @@
 import { supabase } from '../config/supabase.js';
 import { validationResult } from 'express-validator';
+import bcrypt from 'bcryptjs';
 
-export const getVendedores = async (req, res, next) => {
+export const getUsuarios = async (req, res, next) => {
   try {
+    // Only fetch non-sensitive data
     const { data, error } = await supabase
-      .from('vendedores')
-      .select('id, nome, email, comissao, status, created_at, updated_at')
+      .from('usuarios')
+      .select('id, nome, email, papel, created_at')
       .order('nome', { ascending: true });
 
     if (error) {
@@ -18,25 +20,40 @@ export const getVendedores = async (req, res, next) => {
   }
 };
 
-export const createVendedor = async (req, res, next) => {
+export const createUsuario = async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { nome, email, comissao } = req.body;
+    const { nome, email, senha, papel } = req.body;
 
+    // Check if user already exists
+    const { data: existingUser } = await supabase
+      .from('usuarios')
+      .select('id')
+      .eq('email', email.toLowerCase())
+      .single();
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'User already exists' });
+    }
+
+    // Hash password
+    const senha_hash = await bcrypt.hash(senha, 10);
+
+    // Create user
     const { data, error } = await supabase
-      .from('vendedores')
+      .from('usuarios')
       .insert({
         nome,
-        email,
-        comissao: comissao || 0,
-        created_at: new Date().toISOString(),
-        status: 'ativo'
+        email: email.toLowerCase(),
+        senha_hash,
+        papel: papel || 'Vendedor',
+        created_at: new Date().toISOString()
       })
-      .select()
+      .select('id, nome, email, papel, created_at')
       .single();
 
     if (error) {
@@ -49,7 +66,7 @@ export const createVendedor = async (req, res, next) => {
   }
 };
 
-export const updateVendedor = async (req, res, next) => {
+export const updateUsuario = async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -57,13 +74,19 @@ export const updateVendedor = async (req, res, next) => {
     }
 
     const { id } = req.params;
-    const updates = { ...req.body, updated_at: new Date().toISOString() };
+    const { senha, ...updates } = req.body;
+
+    if (senha) {
+      updates.senha_hash = await bcrypt.hash(senha, 10);
+    }
+    
+    updates.updated_at = new Date().toISOString();
 
     const { data, error } = await supabase
-      .from('vendedores')
+      .from('usuarios')
       .update(updates)
       .eq('id', id)
-      .select()
+      .select('id, nome, email, papel, created_at')
       .single();
 
     if (error) {
@@ -71,7 +94,7 @@ export const updateVendedor = async (req, res, next) => {
     }
 
     if (!data) {
-      return res.status(404).json({ error: 'Vendedor not found' });
+      return res.status(404).json({ error: 'User not found' });
     }
 
     res.json(data);
@@ -80,12 +103,12 @@ export const updateVendedor = async (req, res, next) => {
   }
 };
 
-export const deleteVendedor = async (req, res, next) => {
+export const deleteUsuario = async (req, res, next) => {
   try {
     const { id } = req.params;
 
     const { error } = await supabase
-      .from('vendedores')
+      .from('usuarios')
       .delete()
       .eq('id', id);
 
@@ -93,7 +116,7 @@ export const deleteVendedor = async (req, res, next) => {
       return res.status(400).json({ error: error.message });
     }
 
-    res.json({ message: 'Vendedor deleted successfully' });
+    res.json({ message: 'User deleted successfully' });
   } catch (error) {
     next(error);
   }

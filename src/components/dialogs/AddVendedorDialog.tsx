@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Dialog,
@@ -10,66 +10,45 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { vendedoresAPI } from "@/lib/api";
+import { Loader2, Percent } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { usuariosAPI } from "@/lib/api";
 
-interface Usuario {
-  id: string;
-  nome: string;
-  email: string;
-  papel: string;
-}
-
-interface EditUserDialogProps {
+interface AddVendedorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  usuario?: Usuario;
   onSuccess?: () => void;
 }
 
-export const EditUserDialog = ({
+export const AddVendedorDialog = ({
   open,
   onOpenChange,
-  usuario,
   onSuccess,
-}: EditUserDialogProps) => {
+}: AddVendedorDialogProps) => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     nome: "",
     email: "",
-    papel: "",
-    senha: "", // Optional password change
+    comissao: "5.0",
   });
 
-  useEffect(() => {
-    if (usuario) {
-      setFormData({
-        nome: usuario.nome,
-        email: usuario.email,
-        papel: usuario.papel,
-        senha: "",
-      });
-    }
-  }, [usuario]);
-
-  const updateMutation = useMutation({
-    mutationFn: (data: any) => usuariosAPI.update(usuario!.id, data),
+  const createMutation = useMutation({
+    mutationFn: vendedoresAPI.create,
     onSuccess: () => {
       toast({
         title: "Sucesso",
-        description: "Usuário atualizado com sucesso!",
+        description: "Vendedor cadastrado com sucesso!",
       });
-      queryClient.invalidateQueries({ queryKey: ["usuarios"] });
+      queryClient.invalidateQueries({ queryKey: ["vendedores"] });
+      
+      setFormData({
+        nome: "",
+        email: "",
+        comissao: "5.0",
+      });
+
       onOpenChange(false);
       onSuccess?.();
     },
@@ -85,7 +64,7 @@ export const EditUserDialog = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.nome || !formData.email || !formData.papel) {
+    if (!formData.nome || !formData.email || !formData.comissao) {
       toast({
         title: "Erro",
         description: "Preencha todos os campos obrigatórios",
@@ -94,28 +73,22 @@ export const EditUserDialog = ({
       return;
     }
 
-    const updates: any = {
+    createMutation.mutate({
       nome: formData.nome,
       email: formData.email,
-      papel: formData.papel,
-    };
-
-    if (formData.senha) {
-      updates.senha = formData.senha;
-    }
-
-    updateMutation.mutate(updates);
+      comissao: parseFloat(formData.comissao),
+    });
   };
 
-  const loading = updateMutation.isPending;
+  const loading = createMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Editar Usuário</DialogTitle>
+          <DialogTitle>Novo Vendedor</DialogTitle>
           <DialogDescription>
-            Atualize os dados do usuário
+            Cadastre um novo vendedor e defina sua comissão
           </DialogDescription>
         </DialogHeader>
 
@@ -153,36 +126,21 @@ export const EditUserDialog = ({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="papel">Papel *</Label>
-            <Select
-              value={formData.papel}
-              onValueChange={(value) =>
-                setFormData({ ...formData, papel: value })
-              }
-              disabled={loading}
-            >
-              <SelectTrigger id="papel">
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Admin">Admin</SelectItem>
-                <SelectItem value="Financeiro">Financeiro</SelectItem>
-                <SelectItem value="Vendedor">Vendedor</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="senha">Nova Senha (Opcional)</Label>
+            <Label htmlFor="comissao" className="flex items-center gap-2">
+              <Percent className="h-4 w-4 text-success" />
+              Comissão (%) *
+            </Label>
             <Input
-              id="senha"
-              type="password"
-              placeholder="Deixe em branco para manter a senha atual"
-              value={formData.senha}
-              onChange={(e) =>
-                setFormData({ ...formData, senha: e.target.value })
-              }
+              id="comissao"
+              type="number"
+              step="0.5"
+              min="0"
+              max="100"
+              placeholder="Ex: 5.0"
+              value={formData.comissao}
+              onChange={(e) => setFormData({ ...formData, comissao: e.target.value })}
               disabled={loading}
+              className="text-lg font-semibold"
             />
           </div>
 
@@ -197,7 +155,7 @@ export const EditUserDialog = ({
             </Button>
             <Button type="submit" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Salvar Alterações
+              Cadastrar Vendedor
             </Button>
           </div>
         </motion.form>

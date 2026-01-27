@@ -67,6 +67,14 @@ export const authAPI = {
   },
 };
 
+// API de Usuários (Admin Management)
+export const usuariosAPI = {
+  getAll: () => request<any[]>('/usuarios'),
+  create: (data: any) => request<any>('/usuarios', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: any) => request<any>(`/usuarios/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<{ message: string }>(`/usuarios/${id}`, { method: 'DELETE' }),
+};
+
 // API de Operadoras
 export const operadorasAPI = {
   getAll: (status?: string) => request<any[]>(`/operadoras${status ? `?status=${status}` : ''}`),
@@ -103,6 +111,9 @@ export const beneficiariosAPI = {
 // API de Vendedores (New)
 export const vendedoresAPI = {
   getAll: () => request<any[]>('/vendedores'),
+  create: (data: any) => request<any>('/vendedores', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: any) => request<any>(`/vendedores/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<{ message: string }>(`/vendedores/${id}`, { method: 'DELETE' }),
 };
 
 // API de Financeiro
