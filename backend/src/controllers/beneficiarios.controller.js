@@ -1,6 +1,9 @@
 import { supabase } from '../config/supabase.js';
 import { validationResult } from 'express-validator';
 
+// Helper function to clean CPF/CNPJ
+const cleanDocument = (doc) => doc ? doc.replace(/[^\d]/g, '') : doc;
+
 export const getBeneficiarios = async (req, res, next) => {
   try {
     const { status, vendedor_id, busca } = req.query;
@@ -79,7 +82,8 @@ export const createBeneficiario = async (req, res, next) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { nome, cpf, plano_id, vendedor_id } = req.body;
+    const { nome, cpf: rawCpf, plano_id, vendedor_id } = req.body;
+    const cpf = cleanDocument(rawCpf); // Clean CPF
 
     // Verificar se CPF já existe
     const { data: existing } = await supabase
@@ -96,7 +100,7 @@ export const createBeneficiario = async (req, res, next) => {
       .from('beneficiarios')
       .insert({
         nome,
-        cpf,
+        cpf, // Insert cleaned CPF
         plano_id,
         vendedor_id: vendedor_id || null,
         status: 'ativo',
@@ -124,7 +128,13 @@ export const updateBeneficiario = async (req, res, next) => {
     }
 
     const { id } = req.params;
-    const updates = { ...req.body, updated_at: new Date().toISOString() };
+    const { cpf: rawCpf, ...rest } = req.body;
+    
+    const updates = { ...rest, updated_at: new Date().toISOString() };
+    
+    if (rawCpf) {
+        updates.cpf = cleanDocument(rawCpf);
+    }
 
     const { data, error } = await supabase
       .from('beneficiarios')

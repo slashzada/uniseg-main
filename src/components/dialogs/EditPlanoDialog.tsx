@@ -31,6 +31,7 @@ interface Plano {
   valor: number;
   tipo: string;
   popular: boolean;
+  descricao?: string; // Added description
 }
 
 interface EditPlanoDialogProps {
@@ -56,6 +57,7 @@ export const EditPlanoDialog = ({
     tipo: "",
     valor: "",
     popular: false,
+    descricao: "", // Added description
   });
 
   useEffect(() => {
@@ -66,6 +68,7 @@ export const EditPlanoDialog = ({
         tipo: plano.tipo,
         valor: plano.valor.toString(),
         popular: plano.popular,
+        descricao: plano.descricao || "", // Initialize description
       });
     }
   }, [plano]);
@@ -108,6 +111,7 @@ export const EditPlanoDialog = ({
       tipo: formData.tipo,
       valor: parseFloat(formData.valor),
       popular: formData.popular,
+      descricao: formData.descricao || undefined, // Include description
     });
   };
 
@@ -201,6 +205,19 @@ export const EditPlanoDialog = ({
             />
           </div>
           
+          <div className="space-y-2">
+            <Label htmlFor="descricao">Descrição</Label>
+            <Input
+              id="descricao"
+              placeholder="Descrição do plano (opcional)"
+              value={formData.descricao}
+              onChange={(e) =>
+                setFormData({ ...formData, descricao: e.target.value })
+              }
+              disabled={loading}
+            />
+          </div>
+
           <div className="flex items-center space-x-2 pt-2">
             <input
               id="popular"

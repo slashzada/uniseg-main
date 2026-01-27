@@ -18,7 +18,8 @@ router.get('/:id', getBeneficiarioById);
 router.post('/',
   [
     body('nome').notEmpty().trim(),
-    body('cpf').matches(/^\d{3}\.\d{3}\.\d{3}-\d{2}$/).withMessage('Invalid CPF format'),
+    // Relaxing CPF validation to accept 11 digits (or formatted) to prevent immediate 400 errors
+    body('cpf').isLength({ min: 11 }).withMessage('CPF must be at least 11 characters (digits only)'),
     body('plano_id').isUUID(),
     body('vendedor_id').optional().isUUID()
   ],

@@ -80,7 +80,7 @@ export const createPlano = async (req, res, next) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { nome, operadora_id, valor, tipo, popular } = req.body;
+    const { nome, operadora_id, valor, tipo, popular, descricao } = req.body;
 
     const { data, error } = await supabase
       .from('planos')
@@ -90,6 +90,7 @@ export const createPlano = async (req, res, next) => {
         valor,
         tipo,
         popular: popular || false,
+        descricao: descricao || null, // Added description field
         created_at: new Date().toISOString()
       })
       .select()

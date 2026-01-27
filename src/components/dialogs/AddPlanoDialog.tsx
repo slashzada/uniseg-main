@@ -20,6 +20,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { planosAPI } from "@/lib/api";
 import { Loader2 } from "lucide-react";
+import { useOperadoras } from "@/hooks/use-fetch-data";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface AddPlanoDialogProps {
   open: boolean;
@@ -27,33 +29,56 @@ interface AddPlanoDialogProps {
   onSuccess?: () => void;
 }
 
-const operadoras = [
-  { id: 1, nome: "Unimed" },
-  { id: 2, nome: "Bradesco Saúde" },
-  { id: 3, nome: "SulAmérica" },
-  { id: 4, nome: "Amil" },
-  { id: 5, nome: "NotreDame Intermédica" },
-];
-
 export const AddPlanoDialog = ({
   open,
   onOpenChange,
   onSuccess,
 }: AddPlanoDialogProps) => {
+  const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
+  const { data: operadoras, isLoading: loadingOperadoras } = useOperadoras();
+  
   const [formData, setFormData] = useState({
     nome: "",
-    operadora: "",
+    operadora_id: "", // Changed from 'operadora' to 'operadora_id'
     tipo: "",
     valor: "",
     descricao: "",
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const createPlanoMutation = useMutation({
+    mutationFn: planosAPI.create,
+    onSuccess: () => {
+      toast({
+        title: "Sucesso",
+        description: "Plano cadastrado com sucesso!",
+      });
+      queryClient.invalidateQueries({ queryKey: ["planos"] });
+      
+      setFormData({
+        nome: "",
+        operadora_id: "",
+        tipo: "",
+        valor: "",
+        descricao: "",
+      });
+
+      onOpenChange(false);
+      onSuccess?.();
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.nome || !formData.operadora || !formData.tipo || !formData.valor) {
+    if (!formData.nome || !formData.operadora_id || !formData.tipo || !formData.valor) {
       toast({
         title: "Erro",
         description: "Preencha todos os campos obrigatórios",
@@ -62,41 +87,17 @@ export const AddPlanoDialog = ({
       return;
     }
 
-    setLoading(true);
-    try {
-      await planosAPI.create({
-        nome: formData.nome,
-        operadora_id: parseInt(formData.operadora),
-        tipo: formData.tipo,
-        valor: parseFloat(formData.valor),
-        descricao: formData.descricao,
-      });
-
-      toast({
-        title: "Sucesso",
-        description: "Plano cadastrado com sucesso!",
-      });
-
-      setFormData({
-        nome: "",
-        operadora: "",
-        tipo: "",
-        valor: "",
-        descricao: "",
-      });
-
-      onOpenChange(false);
-      onSuccess?.();
-    } catch (error) {
-      toast({
-        title: "Erro",
-        description: error instanceof Error ? error.message : "Erro ao cadastrar plano",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
+    createPlanoMutation.mutate({
+      nome: formData.nome,
+      operadora_id: formData.operadora_id,
+      tipo: formData.tipo,
+      valor: parseFloat(formData.valor),
+      descricao: formData.descricao || undefined,
+      popular: false, // Default to false
+    });
   };
+
+  const loading = createPlanoMutation.isPending || loadingOperadoras;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -131,18 +132,18 @@ export const AddPlanoDialog = ({
             <div className="space-y-2">
               <Label htmlFor="operadora">Operadora *</Label>
               <Select
-                value={formData.operadora}
+                value={formData.operadora_id}
                 onValueChange={(value) =>
-                  setFormData({ ...formData, operadora: value })
+                  setFormData({ ...formData, operadora_id: value })
                 }
                 disabled={loading}
               >
                 <SelectTrigger id="operadora">
-                  <SelectValue placeholder="Selecione" />
+                  <SelectValue placeholder={loadingOperadoras ? "Carregando..." : "Selecione"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {operadoras.map((op) => (
-                    <SelectItem key={op.id} value={op.id.toString()}>
+                  {operadoras?.map((op) => (
+                    <SelectItem key={op.id} value={op.id}>
                       {op.nome}
                     </SelectItem>
                   ))}
