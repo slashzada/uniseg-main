@@ -72,6 +72,13 @@ const Operadoras = () => {
   const { data: operadoras, isLoading, refetch } = useQuery<Operadora[]>({
     queryKey: ["operadoras", filtro],
     queryFn: () => operadorasAPI.getAll(filtro === "todas" ? undefined : filtro === "ativas" ? "ativa" : "inativa"),
+    onError: (error) => {
+      toast({
+        title: "Erro ao carregar dados",
+        description: `Não foi possível carregar a lista de operadoras: ${error.message}.`,
+        variant: "destructive",
+      });
+    },
   });
 
   const deleteMutation = useMutation({

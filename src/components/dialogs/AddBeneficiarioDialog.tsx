@@ -23,6 +23,9 @@ import { Loader2 } from "lucide-react";
 import { useOperadoras, usePlanos, useVendedores } from "@/hooks/use-fetch-data";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+// Helper function to clean document numbers (CNPJ/CPF)
+const cleanDocument = (doc: string) => doc.replace(/[^\d]/g, '');
+
 interface AddBeneficiarioDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -100,7 +103,7 @@ export const AddBeneficiarioDialog = ({
 
     createBeneficiarioMutation.mutate({
       nome: formData.nome,
-      cpf: formData.cpf,
+      cpf: cleanDocument(formData.cpf), // Clean CPF before sending
       plano_id: formData.plano_id,
       vendedor_id: formData.vendedor_id,
       // Note: valor_plano is not required by the backend controller, but if it were, 

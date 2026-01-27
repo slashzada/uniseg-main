@@ -20,6 +20,9 @@ interface AddOperadoraDialogProps {
   onSuccess?: () => void;
 }
 
+// Helper function to clean document numbers (CNPJ/CPF)
+const cleanDocument = (doc: string) => doc.replace(/[^\d]/g, '');
+
 export const AddOperadoraDialog = ({
   open,
   onOpenChange,
@@ -51,7 +54,7 @@ export const AddOperadoraDialog = ({
     try {
       await operadorasAPI.create({
         nome: formData.nome,
-        cnpj: formData.cnpj,
+        cnpj: cleanDocument(formData.cnpj), // Clean CNPJ before sending
         telefone: formData.telefone,
         email: formData.email,
         endereco: formData.endereco,
