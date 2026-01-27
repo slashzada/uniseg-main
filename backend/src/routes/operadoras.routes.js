@@ -18,7 +18,11 @@ router.get('/:id', getOperadoraById);
 router.post('/',
   [
     body('nome').notEmpty().trim(),
-    body('status').isIn(['ativa', 'inativa'])
+    body('cnpj').notEmpty().withMessage('CNPJ is required'),
+    body('telefone').optional().trim(),
+    body('email').optional().isEmail().normalizeEmail(),
+    body('endereco').optional().trim(),
+    body('status').isIn(['ativa', 'inativa']).optional()
   ],
   createOperadora
 );

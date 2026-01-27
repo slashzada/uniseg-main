@@ -72,7 +72,7 @@ export const createOperadora = async (req, res, next) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { nome, status, cor } = req.body;
+    const { nome, status, cor, cnpj, telefone, email, endereco } = req.body;
 
     const { data, error } = await supabase
       .from('operadoras')
@@ -80,6 +80,10 @@ export const createOperadora = async (req, res, next) => {
         nome,
         status: status || 'ativa',
         cor: cor || 'from-primary to-primary/80',
+        cnpj: cnpj || null,
+        telefone: telefone || null,
+        email: email || null,
+        endereco: endereco || null,
         created_at: new Date().toISOString()
       })
       .select()
