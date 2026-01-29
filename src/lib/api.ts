@@ -143,6 +143,7 @@ export const financeiroAPI = {
       method: 'POST',
       body: JSON.stringify({ boleto_nome, boleto_url })
     }),
+  confirmarPagamento: (id: string) => request<any>(`/financeiro/${id}/confirmar`, { method: 'POST' }),
   delete: (id: string) => request<{ message: string }>(`/financeiro/${id}`, { method: 'DELETE' }),
 };
 

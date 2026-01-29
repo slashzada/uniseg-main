@@ -7,7 +7,7 @@ export const getUsuarios = async (req, res, next) => {
     // Only fetch non-sensitive data
     const { data, error } = await supabase
       .from('usuarios')
-      .select('id, nome, email, papel, created_at')
+      .select('id, nome, email, papel, vendedor_id, created_at')
       .order('nome', { ascending: true });
 
     if (error) {
@@ -27,7 +27,7 @@ export const createUsuario = async (req, res, next) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { nome, email, senha, papel } = req.body;
+    const { nome, email, senha, papel, vendedor_id } = req.body;
 
     // Check if user already exists
     const { data: existingUser } = await supabase
@@ -51,9 +51,10 @@ export const createUsuario = async (req, res, next) => {
         email: email.toLowerCase(),
         senha_hash,
         papel: papel || 'Vendedor',
+        vendedor_id: vendedor_id || null,
         created_at: new Date().toISOString()
       })
-      .select('id, nome, email, papel, created_at')
+      .select('id, nome, email, papel, vendedor_id, created_at')
       .single();
 
     if (error) {
@@ -79,14 +80,14 @@ export const updateUsuario = async (req, res, next) => {
     if (senha) {
       updates.senha_hash = await bcrypt.hash(senha, 10);
     }
-    
+
     updates.updated_at = new Date().toISOString();
 
     const { data, error } = await supabase
       .from('usuarios')
       .update(updates)
       .eq('id', id)
-      .select('id, nome, email, papel, created_at')
+      .select('id, nome, email, papel, vendedor_id, created_at')
       .single();
 
     if (error) {

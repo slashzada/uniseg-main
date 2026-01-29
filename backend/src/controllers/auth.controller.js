@@ -35,7 +35,8 @@ export const login = async (req, res, next) => {
         id: user.id,
         email: user.email,
         nome: user.nome,
-        papel: user.papel
+        papel: user.papel,
+        vendedor_id: user.vendedor_id // Add link to Vendedor Profile
       },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }

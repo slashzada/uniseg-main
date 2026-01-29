@@ -41,6 +41,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { planosAPI, beneficiariosAPI, financeiroAPI } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { exportToCSV } from "@/lib/export";
@@ -65,8 +66,9 @@ interface Pagamento {
   plano: string; // Resolved Name
   valor: number;
   vencimento: string; // Formatted Date
-  status: "pago" | "pendente" | "vencido";
+  status: "pago" | "pendente" | "vencido" | "comprovante_anexado";
   boleto_anexado?: string;
+  boleto_url?: string;
 }
 
 const statusConfig = {
@@ -85,10 +87,16 @@ const statusConfig = {
     className: "bg-destructive/15 text-destructive border-destructive/30",
     icon: AlertCircle,
   },
+  comprovante_anexado: {
+    label: "Em Análise",
+    className: "bg-blue-500/15 text-blue-500 border-blue-500/30",
+    icon: Clock,
+  }
 };
 
 const Financeiro = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [busca, setBusca] = useState("");
   const [modalAnexar, setModalAnexar] = useState<Pagamento | null>(null);
@@ -133,25 +141,29 @@ const Financeiro = () => {
 
   const anexarBoletoMutation = useMutation({
     mutationFn: (data: { id: string, nome: string }) =>
-      financeiroAPI.anexarBoleto(data.id, data.nome), // Assuming URL upload is handled elsewhere or mocked
+      financeiroAPI.anexarBoleto(data.id, data.nome),
     onSuccess: () => {
       toast({
         title: "✅ Boleto anexado com sucesso!",
-        description: `Pagamento de ${modalAnexar?.beneficiario} marcado como pago.`,
+        description: `Status atualizado para 'Em Análise'.`,
       });
       queryClient.invalidateQueries({ queryKey: ["pagamentos"] });
-      queryClient.invalidateQueries({ queryKey: ["recentPayments"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboardStats"] });
+      // ... invalidate others ...
       setModalAnexar(null);
       setArquivoSelecionado(null);
     },
     onError: (error) => {
-      toast({
-        title: "Erro ao anexar boleto",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
     },
+  });
+
+  const confirmarPagamentoMutation = useMutation({
+    mutationFn: (id: string) => financeiroAPI.confirmarPagamento(id),
+    onSuccess: () => {
+      toast({ title: "✅ Pagamento Confirmado!", description: "O pagamento foi marcado como 'Pago'." });
+      queryClient.invalidateQueries({ queryKey: ["pagamentos"] });
+    },
+    onError: (error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
   });
 
   const handleAnexarBoleto = () => {
@@ -600,7 +612,7 @@ const Financeiro = () => {
                 ) : (
                   <CheckCircle2 className="h-4 w-4 mr-2" />
                 )}
-                Anexar e Marcar como Pago
+                Anexar Comprovante
               </Button>
             </motion.div>
           </DialogFooter>

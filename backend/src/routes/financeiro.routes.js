@@ -5,7 +5,10 @@ import {
   createPagamento,
   updatePagamento,
   deletePagamento,
-  anexarBoleto
+  updatePagamento,
+  deletePagamento,
+  anexarBoleto,
+  confirmarPagamento
 } from '../controllers/financeiro.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import { body } from 'express-validator';
@@ -32,6 +35,7 @@ router.put('/:id',
   updatePagamento
 );
 router.post('/:id/boleto', anexarBoleto);
+router.post('/:id/confirmar', confirmarPagamento);
 router.delete('/:id', deletePagamento);
 
 export default router;

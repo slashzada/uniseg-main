@@ -142,9 +142,42 @@ export const anexarBoleto = async (req, res, next) => {
     const { data, error } = await supabase
       .from('pagamentos')
       .update({
-        status: 'pago',
+        status: 'comprovante_anexado', // Workflow step 1
         boleto_anexado: boleto_nome || 'boleto.pdf',
         boleto_url: boleto_url || null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    if (!data) {
+      return res.status(404).json({ error: 'Pagamento not found' });
+    }
+
+    res.json(data);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const confirmarPagamento = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Optional: Check permissions here (already done in route usually, but safety check)
+    if (req.user.papel === 'Vendedor') {
+      return res.status(403).json({ error: 'Apenas Financeiro/Admin pode confirmar pagamentos.' });
+    }
+
+    const { data, error } = await supabase
+      .from('pagamentos')
+      .update({
+        status: 'pago', // Final step
         updated_at: new Date().toISOString()
       })
       .eq('id', id)

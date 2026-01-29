@@ -44,7 +44,9 @@ export const AddBeneficiarioDialog = ({
     cpf: "",
     plano_id: "",
     operadora_id: "",
+    operadora_id: "",
     vendedor_id: "",
+    vigencia: "", // New Field
     valor: "", // This field is not strictly needed for the backend API but kept for form compatibility
   });
 
@@ -67,13 +69,15 @@ export const AddBeneficiarioDialog = ({
         description: "Beneficiário cadastrado com sucesso!",
       });
       queryClient.invalidateQueries({ queryKey: ["beneficiarios"] });
-      
+
       setFormData({
         nome: "",
         cpf: "",
         plano_id: "",
         operadora_id: "",
+        operadora_id: "",
         vendedor_id: "",
+        vigencia: "",
         valor: "",
       });
 
@@ -91,7 +95,7 @@ export const AddBeneficiarioDialog = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.nome || !formData.cpf || !formData.plano_id || !formData.operadora_id || !formData.vendedor_id) {
       toast({
         title: "Erro",
@@ -105,7 +109,9 @@ export const AddBeneficiarioDialog = ({
       nome: formData.nome,
       cpf: cleanDocument(formData.cpf), // Clean CPF before sending
       plano_id: formData.plano_id,
+      plano_id: formData.plano_id,
       vendedor_id: formData.vendedor_id,
+      vigencia: formData.vigencia, // Send vigencia
       // Note: valor_plano is not required by the backend controller, but if it were, 
       // we would calculate it based on the selected plano or use the form value.
     });
@@ -240,22 +246,36 @@ export const AddBeneficiarioDialog = ({
             </div>
           </div>
 
-          <div className="flex gap-3 justify-end pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
+          <div className="space-y-2">
+            <Label htmlFor="vigencia">Vigência</Label>
+            <Input
+              id="vigencia"
+              type="date"
+              value={formData.vigencia}
+              onChange={(e) =>
+                setFormData({ ...formData, vigencia: e.target.value })
+              }
               disabled={loading}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Cadastrar
-            </Button>
+            />
           </div>
-        </motion.form>
-      </DialogContent>
-    </Dialog>
+        </div>
+
+        <div className="flex gap-3 justify-end pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={loading}
+          >
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={loading}>
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Cadastrar
+          </Button>
+        </div>
+      </motion.form>
+    </DialogContent>
+    </Dialog >
   );
 };

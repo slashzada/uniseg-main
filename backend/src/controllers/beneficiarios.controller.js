@@ -17,9 +17,16 @@ export const getBeneficiarios = async (req, res, next) => {
       query = query.eq('status', status);
     }
 
-    if (vendedor_id) {
+    // RBAC: Force filter if user is Vendedor
+    if (req.user && req.user.papel === 'Vendedor' && req.user.vendedor_id) {
+      query = query.eq('vendedor_id', req.user.vendedor_id);
+    } else if (vendedor_id) {
+       // Only allow filtering by specific vendeur if Admin or if looking for that specific one (logic above handles forced filter)
       query = query.eq('vendedor_id', vendedor_id);
     }
+    
+    // Debug
+    // console.log('User Role:', req.user?.papel, 'Vendedor ID:', req.user?.vendedor_id);
 
     if (busca) {
       query = query.or(`nome.ilike.%${busca}%,cpf.ilike.%${busca}%`);
@@ -118,6 +125,7 @@ export const createBeneficiario = async (req, res, next) => {
         plano_id,
         vendedor_id: vendedor_id || null,
         status: 'ativo',
+        vigencia: req.body.vigencia || null, // Add vigencia
         desde: new Date().toISOString(),
         created_at: new Date().toISOString()
       })
@@ -142,9 +150,11 @@ export const updateBeneficiario = async (req, res, next) => {
     }
 
     const { id } = req.params;
-    const { cpf: rawCpf, ...rest } = req.body;
+    const { cpf: rawCpf, vigencia, ...rest } = req.body;
 
     const updates = { ...rest, updated_at: new Date().toISOString() };
+    
+    if (vigencia) updates.vigencia = vigencia;
 
     if (rawCpf) {
       updates.cpf = cleanDocument(rawCpf);

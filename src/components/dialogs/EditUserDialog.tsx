@@ -19,14 +19,15 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { usuariosAPI } from "@/lib/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { usuariosAPI, vendedoresAPI } from "@/lib/api";
 
 interface Usuario {
   id: string;
   nome: string;
   email: string;
   papel: string;
+  vendedor_id?: string | null;
 }
 
 interface EditUserDialogProps {
@@ -49,6 +50,13 @@ export const EditUserDialog = ({
     email: "",
     papel: "",
     senha: "", // Optional password change
+    vendedor_id: "",
+  });
+
+  const { data: vendedores } = useQuery({
+    queryKey: ["vendedores"],
+    queryFn: vendedoresAPI.getAll,
+    enabled: formData.papel === "Vendedor",
   });
 
   useEffect(() => {
@@ -58,6 +66,7 @@ export const EditUserDialog = ({
         email: usuario.email,
         papel: usuario.papel,
         senha: "",
+        vendedor_id: usuario.vendedor_id || "",
       });
     }
   }, [usuario]);
@@ -84,7 +93,7 @@ export const EditUserDialog = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.nome || !formData.email || !formData.papel) {
       toast({
         title: "Erro",
@@ -98,6 +107,7 @@ export const EditUserDialog = ({
       nome: formData.nome,
       email: formData.email,
       papel: formData.papel,
+      vendedor_id: formData.papel === "Vendedor" ? formData.vendedor_id : null,
     };
 
     if (formData.senha) {
@@ -171,7 +181,7 @@ export const EditUserDialog = ({
               </SelectContent>
             </Select>
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="senha">Nova Senha (Opcional)</Label>
             <Input
@@ -185,6 +195,34 @@ export const EditUserDialog = ({
               disabled={loading}
             />
           </div>
+
+          {formData.papel === "Vendedor" && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              className="space-y-2"
+            >
+              <Label htmlFor="vendedor_id">Vínculo com Vendedor *</Label>
+              <Select
+                value={formData.vendedor_id}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, vendedor_id: value })
+                }
+                disabled={loading}
+              >
+                <SelectTrigger id="vendedor_id">
+                  <SelectValue placeholder="Selecione o Vendedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {vendedores?.map((v: any) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </motion.div>
+          )}
 
           <div className="flex gap-3 justify-end pt-4">
             <Button

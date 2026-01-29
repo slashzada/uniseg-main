@@ -136,29 +136,38 @@ export function AppLayout({ children }: AppLayoutProps) {
         {/* Navigation */}
         <nav className="relative flex-1 overflow-y-auto scrollbar-thin px-3 py-4">
           <ul className="space-y-1">
-            {navItems.map((item, index) => (
-              <motion.li
-                key={item.title}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.05 }}
-              >
-                <NavLink
-                  to={item.url}
-                  end={item.url === "/"}
-                  className={cn(
-                    "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                    "hover:bg-sidebar-accent/80 hover:translate-x-1",
-                    !sidebarOpen && "justify-center px-2"
-                  )}
-                  activeClassName="bg-sidebar-accent text-sidebar-primary shadow-lg shadow-sidebar-primary/20"
-                  onClick={() => setMobileOpen(false)}
+            {navItems
+              .filter(item => {
+                if (user?.papel === "Vendedor") {
+                  return !["Financeiro", "Configurações", "Operadoras", "Planos"].includes(item.title) || ["Operadoras", "Planos"].includes(item.title); // Keep Operadoras/Planos visible but restricted actions inside
+                  // Simplify: Just exclude Financeiro and Configurações
+                  return !["Financeiro", "Configurações"].includes(item.title);
+                }
+                return true;
+              })
+              .map((item, index) => (
+                <motion.li
+                  key={item.title}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
                 >
-                  <item.icon className="h-5 w-5 shrink-0 transition-transform group-hover:scale-110" />
-                  {sidebarOpen && <span>{item.title}</span>}
-                </NavLink>
-              </motion.li>
-            ))}
+                  <NavLink
+                    to={item.url}
+                    end={item.url === "/"}
+                    className={cn(
+                      "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                      "hover:bg-sidebar-accent/80 hover:translate-x-1",
+                      !sidebarOpen && "justify-center px-2"
+                    )}
+                    activeClassName="bg-sidebar-accent text-sidebar-primary shadow-lg shadow-sidebar-primary/20"
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <item.icon className="h-5 w-5 shrink-0 transition-transform group-hover:scale-110" />
+                    {sidebarOpen && <span>{item.title}</span>}
+                  </NavLink>
+                </motion.li>
+              ))}
           </ul>
         </nav>
 

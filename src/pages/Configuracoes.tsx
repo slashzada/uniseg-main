@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { useEffect } from "react";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import {
   Users,
@@ -75,14 +76,14 @@ const itemVariants = {
 const Configuracoes = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  
+
   // Vendedores State and Hooks
   const [openAddVendedorDialog, setOpenAddVendedorDialog] = useState(false);
   const [openEditVendedorDialog, setOpenEditVendedorDialog] = useState(false);
   const [selectedVendedor, setSelectedVendedor] = useState<Vendedor | undefined>(undefined);
   const [openDeleteVendedorAlert, setOpenDeleteVendedorAlert] = useState(false);
   const [vendedorToDelete, setVendedorToDelete] = useState<Vendedor | null>(null);
-  
+
   // Usuários State and Hooks
   const [openAddUserDialog, setOpenAddUserDialog] = useState(false);
   const [openEditUserDialog, setOpenEditUserDialog] = useState(false);
@@ -116,20 +117,20 @@ const Configuracoes = () => {
     enabled: user?.papel === 'Admin', // Only fetch if user is Admin
   });
 
-  // Fetch Financial Config (Fix for TS2769)
-  const configQueryOptions: UseQueryOptions<ConfiguracoesGlobais> = {
+  const { data: configData, isLoading: loadingConfig } = useQuery<ConfiguracoesGlobais>({
     queryKey: ["configuracoesGlobais"],
     queryFn: configuracoesAPI.get,
-    onSuccess: (data) => {
+  });
+
+  useEffect(() => {
+    if (configData) {
       setFinancialConfig({
-        taxa_admin: data.taxa_admin || 5,
-        dias_carencia: data.dias_carencia || 30,
-        multa_atraso: data.multa_atraso || 2,
+        taxa_admin: configData.taxa_admin ?? 5,
+        dias_carencia: configData.dias_carencia ?? 30,
+        multa_atraso: configData.multa_atraso ?? 2,
       });
-    },
-  };
-  
-  const { isLoading: loadingConfig } = useQuery(configQueryOptions);
+    }
+  }, [configData]);
 
   // Update Financial Config Mutation
   const updateConfigMutation = useMutation({
@@ -188,7 +189,7 @@ const Configuracoes = () => {
       deleteVendedorMutation.mutate(vendedorToDelete.id);
     }
   };
-  
+
   // Usuarios Mutations
   const deleteUserMutation = useMutation({
     mutationFn: (id: string) => usuariosAPI.delete(id),
@@ -267,7 +268,7 @@ const Configuracoes = () => {
                       </CardDescription>
                     </div>
                   </div>
-                  <Button 
+                  <Button
                     onClick={() => setOpenAddVendedorDialog(true)}
                     className="bg-gradient-to-r from-accent to-accent/80 hover:from-accent/90 hover:to-accent/70 shadow-lg shadow-accent/25 gap-2"
                   >
@@ -301,10 +302,10 @@ const Configuracoes = () => {
                           className="group flex items-center justify-between px-6 py-5 hover:bg-muted/30 transition-all"
                         >
                           <div className="flex items-center gap-4">
-                            <motion.div 
+                            <motion.div
                               className={cn(
                                 "flex h-12 w-12 items-center justify-center rounded-2xl",
-                                vendedor.status === "ativo" 
+                                vendedor.status === "ativo"
                                   ? "bg-gradient-to-br from-primary/20 to-primary/5"
                                   : "bg-muted"
                               )}
@@ -324,7 +325,7 @@ const Configuracoes = () => {
                               <p className="text-sm text-muted-foreground">{vendedor.email}</p>
                             </div>
                           </div>
-                          
+
                           <div className="hidden md:flex items-center gap-8">
                             <div className="text-center">
                               <div className="flex items-center gap-1 text-success">
@@ -344,8 +345,8 @@ const Configuracoes = () => {
                               variant="outline"
                               className={cn(
                                 "border font-medium",
-                                vendedor.status === "ativo" 
-                                  ? "bg-success/15 text-success border-success/30" 
+                                vendedor.status === "ativo"
+                                  ? "bg-success/15 text-success border-success/30"
                                   : "bg-muted text-muted-foreground border-muted-foreground/30"
                               )}
                             >
@@ -355,16 +356,16 @@ const Configuracoes = () => {
                               checked={vendedor.status === "ativo"}
                               onCheckedChange={() => toggleStatus(vendedor)}
                             />
-                            <Button 
-                              variant="ghost" 
+                            <Button
+                              variant="ghost"
                               size="icon"
                               onClick={() => handleEditVendedor(vendedor)}
                               className="opacity-0 group-hover:opacity-100 transition-opacity"
                             >
                               <Edit2 className="h-4 w-4" />
                             </Button>
-                            <Button 
-                              variant="ghost" 
+                            <Button
+                              variant="ghost"
                               size="icon"
                               onClick={() => handleDeleteVendedor(vendedor)}
                               className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
@@ -410,38 +411,38 @@ const Configuracoes = () => {
                   <>
                     <div className="space-y-2">
                       <Label htmlFor="taxa-admin">Taxa Administrativa (%)</Label>
-                      <Input 
-                        id="taxa-admin" 
-                        type="number" 
+                      <Input
+                        id="taxa-admin"
+                        type="number"
                         value={financialConfig.taxa_admin}
                         onChange={(e) => setFinancialConfig({ ...financialConfig, taxa_admin: parseFloat(e.target.value) || 0 })}
-                        className="bg-background/50" 
+                        className="bg-background/50"
                         step="0.01"
                       />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="dias-carencia">Dias de Carência</Label>
-                      <Input 
-                        id="dias-carencia" 
-                        type="number" 
+                      <Input
+                        id="dias-carencia"
+                        type="number"
                         value={financialConfig.dias_carencia}
                         onChange={(e) => setFinancialConfig({ ...financialConfig, dias_carencia: parseInt(e.target.value) || 0 })}
-                        className="bg-background/50" 
+                        className="bg-background/50"
                         step="1"
                       />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="multa-atraso">Multa por Atraso (%)</Label>
-                      <Input 
-                        id="multa-atraso" 
-                        type="number" 
+                      <Input
+                        id="multa-atraso"
+                        type="number"
                         value={financialConfig.multa_atraso}
                         onChange={(e) => setFinancialConfig({ ...financialConfig, multa_atraso: parseFloat(e.target.value) || 0 })}
-                        className="bg-background/50" 
+                        className="bg-background/50"
                         step="0.01"
                       />
                     </div>
-                    <Button 
+                    <Button
                       className="w-full bg-gradient-to-r from-success to-success/80"
                       onClick={handleSaveFinancialConfig}
                       disabled={isSavingConfig}
@@ -512,106 +513,107 @@ const Configuracoes = () => {
             </Card>
           </motion.div>
 
-          {/* Users Management */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="lg:col-span-2"
-          >
-            <Card className="border-0 shadow-lg shadow-foreground/5 bg-card/80 backdrop-blur-sm overflow-hidden">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5">
-                      <Users className="h-6 w-6 text-primary" />
+          {user?.papel === 'Admin' && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="lg:col-span-2"
+            >
+              <Card className="border-0 shadow-lg shadow-foreground/5 bg-card/80 backdrop-blur-sm overflow-hidden">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5">
+                        <Users className="h-6 w-6 text-primary" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">Usuários do Sistema</CardTitle>
+                        <CardDescription>
+                          Gerencie os usuários administrativos
+                        </CardDescription>
+                      </div>
                     </div>
-                    <div>
-                      <CardTitle className="text-lg">Usuários do Sistema</CardTitle>
-                      <CardDescription>
-                        Gerencie os usuários administrativos
-                      </CardDescription>
+                    <Button
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => setOpenAddUserDialog(true)}
+                      disabled={loadingUsuarios}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Adicionar Usuário
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {loadingUsuarios ? (
+                    <div className="flex justify-center items-center py-12">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      <p className="ml-3 text-muted-foreground">Carregando usuários...</p>
                     </div>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    className="gap-2"
-                    onClick={() => setOpenAddUserDialog(true)}
-                    disabled={loadingUsuarios}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Adicionar Usuário
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                {loadingUsuarios ? (
-                  <div className="flex justify-center items-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="ml-3 text-muted-foreground">Carregando usuários...</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-border/50">
-                    {usuariosData.map((user) => (
-                      <motion.div
-                        key={user.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="flex items-center justify-between px-6 py-4 hover:bg-muted/30 transition-colors"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                            <span className="text-sm font-medium text-primary">
-                              {user.nome.split(" ").map(n => n[0]).join("").slice(0, 2)}
-                            </span>
+                  ) : (
+                    <div className="divide-y divide-border/50">
+                      {usuariosData.map((user) => (
+                        <motion.div
+                          key={user.id}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="flex items-center justify-between px-6 py-4 hover:bg-muted/30 transition-colors"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                              <span className="text-sm font-medium text-primary">
+                                {user.nome.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                              </span>
+                            </div>
+                            <div>
+                              <p className="font-medium">{user.nome}</p>
+                              <p className="text-sm text-muted-foreground">{user.email}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium">{user.nome}</p>
-                            <p className="text-sm text-muted-foreground">{user.email}</p>
+                          <div className="flex items-center gap-3">
+                            <Badge
+                              variant="secondary"
+                              className={papelConfig[user.papel]}
+                            >
+                              {user.papel}
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditUser(user)}
+                            >
+                              Editar
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteUser(user)}
+                              disabled={user.id === user?.id} // Prevent deleting self
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Badge
-                            variant="secondary"
-                            className={papelConfig[user.papel]}
-                          >
-                            {user.papel}
-                          </Badge>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleEditUser(user)}
-                          >
-                            Editar
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => handleDeleteUser(user)}
-                            disabled={user.id === user?.id} // Prevent deleting self
-                            className="text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
         </div>
 
-        <AddVendedorDialog 
-          open={openAddVendedorDialog} 
+        <AddVendedorDialog
+          open={openAddVendedorDialog}
           onOpenChange={setOpenAddVendedorDialog}
           onSuccess={refetchVendedores}
         />
-        
+
         {selectedVendedor && (
-          <EditVendedorDialog 
-            open={openEditVendedorDialog} 
+          <EditVendedorDialog
+            open={openEditVendedorDialog}
             onOpenChange={setOpenEditVendedorDialog}
             vendedor={selectedVendedor as Vendedor}
             onSuccess={refetchVendedores}
@@ -624,13 +626,13 @@ const Configuracoes = () => {
             <AlertDialogHeader>
               <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
               <AlertDialogDescription>
-                Esta ação não pode ser desfeita. Isso excluirá permanentemente o vendedor 
+                Esta ação não pode ser desfeita. Isso excluirá permanentemente o vendedor
                 <span className="font-semibold text-foreground"> {vendedorToDelete?.nome}</span>.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={deleteVendedorMutation.isPending}>Cancelar</AlertDialogCancel>
-              <AlertDialogAction 
+              <AlertDialogAction
                 onClick={confirmDeleteVendedor}
                 disabled={deleteVendedorMutation.isPending}
                 className="bg-destructive hover:bg-destructive/90"
@@ -645,34 +647,34 @@ const Configuracoes = () => {
           </AlertDialogContent>
         </AlertDialog>
 
-        <AddUserDialog 
-          open={openAddUserDialog} 
+        <AddUserDialog
+          open={openAddUserDialog}
           onOpenChange={setOpenAddUserDialog}
           onSuccess={refetchUsuarios}
         />
-        
+
         {selectedUser && (
-          <EditUserDialog 
-            open={openEditUserDialog} 
+          <EditUserDialog
+            open={openEditUserDialog}
             onOpenChange={setOpenEditUserDialog}
             usuario={selectedUser}
             onSuccess={refetchUsuarios}
           />
         )}
-        
+
         {/* Delete User Confirmation Alert */}
         <AlertDialog open={openDeleteUserAlert} onOpenChange={setOpenDeleteUserAlert}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
               <AlertDialogDescription>
-                Esta ação não pode ser desfeita. Isso excluirá permanentemente o usuário 
+                Esta ação não pode ser desfeita. Isso excluirá permanentemente o usuário
                 <span className="font-semibold text-foreground"> {userToDelete?.nome}</span>.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={deleteUserMutation.isPending}>Cancelar</AlertDialogCancel>
-              <AlertDialogAction 
+              <AlertDialogAction
                 onClick={confirmDeleteUser}
                 disabled={deleteUserMutation.isPending}
                 className="bg-destructive hover:bg-destructive/90"
