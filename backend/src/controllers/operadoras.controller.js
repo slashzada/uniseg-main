@@ -4,6 +4,7 @@ import { validationResult } from 'express-validator';
 export const getOperadoras = async (req, res, next) => {
   try {
     const { status } = req.query;
+    console.log(`[getOperadoras] Fetching operators. Status filter: ${status || 'all'}`);
 
     let query = supabase
       .from('operadoras')
@@ -21,8 +22,11 @@ export const getOperadoras = async (req, res, next) => {
     const { data, error } = await query;
 
     if (error) {
+      console.error('[getOperadoras] Supabase error:', error);
       return res.status(400).json({ error: error.message });
     }
+
+    console.log(`[getOperadoras] Successfully fetched ${data.length} operators`);
 
     // Formatar resposta
     const operadoras = data.map(op => ({
@@ -33,6 +37,7 @@ export const getOperadoras = async (req, res, next) => {
 
     res.json(operadoras);
   } catch (error) {
+    console.error('[getOperadoras] Unexpected error:', error);
     next(error);
   }
 };

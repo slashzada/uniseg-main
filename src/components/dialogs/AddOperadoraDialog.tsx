@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { motion } from "framer-motion";
 import {
   Dialog,
@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { operadorasAPI } from "@/lib/api";
 import { Loader2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface AddOperadoraDialogProps {
   open: boolean;
@@ -29,6 +30,7 @@ export const AddOperadoraDialog = ({
   onSuccess,
 }: AddOperadoraDialogProps) => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     nome: "",
@@ -38,9 +40,9 @@ export const AddOperadoraDialog = ({
     endereco: "",
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.nome || !formData.cnpj) {
       toast({
         title: "Erro",
@@ -72,6 +74,9 @@ export const AddOperadoraDialog = ({
         email: "",
         endereco: "",
       });
+
+      // Force refresh of the list
+      await queryClient.invalidateQueries({ queryKey: ["operadoras"] });
 
       onOpenChange(false);
       onSuccess?.();
