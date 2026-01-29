@@ -11,7 +11,9 @@ import { cn } from "@/lib/utils";
 import { AddBeneficiarioDialog } from "@/components/dialogs/AddBeneficiarioDialog";
 import { EditBeneficiarioDialog } from "@/components/dialogs/EditBeneficiarioDialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { beneficiariosAPI, vendedoresAPI } from "@/lib/api";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { beneficiariosAPI, vendedoresAPI, planosAPI } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
@@ -84,26 +86,49 @@ const Beneficiarios = () => {
   const [openDeleteAlert, setOpenDeleteAlert] = useState(false);
   const [beneficiarioToDelete, setBeneficiarioToDelete] = useState<Beneficiario | null>(null);
 
+  // 1. Fetch Dependency Lists First
   const { data: vendedores, isLoading: loadingVendedores } = useQuery<any[]>({
     queryKey: ["vendedores"],
     queryFn: vendedoresAPI.getAll,
   });
 
-  const { data: beneficiarios, isLoading, refetch } = useQuery<BackendBeneficiarioResponse[]>({
-    queryKey: ["beneficiarios", filtro, filtroVendedor, busca],
-    queryFn: () => beneficiariosAPI.getAll({ 
-      status: filtro === "todos" ? undefined : filtro, 
+  const { data: planos } = useQuery<any[]>({
+    queryKey: ["planos"],
+    queryFn: () => planosAPI.getAll({}),
+  });
+
+  // 2. Fetch Beneficiarios and "Join" Client-Side
+  const { data: beneficiarios, isLoading, refetch } = useQuery<BackendBeneficiarioResponse[], Error, Beneficiario[]>({
+    queryKey: ["beneficiarios", filtro, filtroVendedor, busca, vendedores, planos], // Add deps to re-render when lists load
+    queryFn: () => beneficiariosAPI.getAll({
+      status: filtro === "todos" ? undefined : filtro,
       vendedor_id: filtroVendedor === "todos" ? undefined : filtroVendedor,
       busca: busca || undefined
     }),
-    select: (data) => data.map(ben => ({
-      ...ben,
-      // Fixes for TS2339 and TS2551: Use the original FKs (plano_id, vendedor_id) which are present in the backend response due to 'select *'
-      plano_id: ben.plano_id, 
-      operadora_id: '', // Operadora ID is not available in this list endpoint, setting placeholder
-      vendedorId: ben.vendedor_id, 
-      // Format date if necessary, but keeping it simple for now
-    })) as Beneficiario[], // Cast to the final interface
+    select: (data) => data.map(ben => {
+      // Client-side JOIN logic
+      const relatedPlano = planos?.find(p => p.id === ben.plano_id);
+      const relatedVendedor = vendedores?.find(v => v.id === ben.vendedor_id);
+
+      return {
+        ...ben,
+        plano_id: ben.plano_id,
+        operadora_id: relatedPlano?.operadora_id || '',
+        vendedorId: ben.vendedor_id,
+
+        // Overwrite simplified backend data with Rich Data from lists
+        plano: relatedPlano?.nome || ben.plano || "Plano Desconhecido",
+        operadora: relatedPlano?.operadora || ben.operadora || "N/A", // Plan list might have operadora name joined? If not, we might need Operadoras list too. Assuming Plan has it or we accept N/A for now.
+        vendedor: relatedVendedor?.nome || ben.vendedor || "Vendedor Desconhecido",
+
+        // Re-calculate financial data
+        valorPlano: relatedPlano?.valor || 0,
+        comissao: relatedVendedor?.comissao || 0,
+
+        // Format Date
+        desde: ben.desde ? format(new Date(ben.desde), "dd/MM/yyyy", { locale: ptBR }) : "Data Inválida",
+      };
+    }) as Beneficiario[],
   });
 
   const deleteMutation = useMutation({
@@ -158,7 +183,7 @@ const Beneficiarios = () => {
         className="space-y-8"
       >
         {/* Header */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
@@ -172,7 +197,7 @@ const Beneficiarios = () => {
             </p>
           </div>
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            <Button 
+            <Button
               onClick={() => setOpenAddDialog(true)}
               className="bg-gradient-to-r from-accent to-accent/80 hover:from-accent/90 hover:to-accent/70 shadow-lg shadow-accent/25 gap-2"
             >
@@ -183,7 +208,7 @@ const Beneficiarios = () => {
         </motion.div>
 
         {/* Stats */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
@@ -324,7 +349,7 @@ const Beneficiarios = () => {
                   <AnimatePresence mode="popLayout">
                     {beneficiariosData.map((ben) => {
                       const comissaoValor = ben.valorPlano ? (ben.valorPlano * ben.comissao / 100) : 0;
-                      
+
                       return (
                         <motion.div
                           key={ben.id}
@@ -336,7 +361,7 @@ const Beneficiarios = () => {
                           className="group flex items-center justify-between px-6 py-5 hover:bg-muted/30 transition-all cursor-pointer"
                         >
                           <div className="flex items-center gap-4">
-                            <motion.div 
+                            <motion.div
                               className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5"
                               whileHover={{ scale: 1.1 }}
                             >
@@ -351,7 +376,7 @@ const Beneficiarios = () => {
                             <p className="font-medium">{ben.plano}</p>
                             <p className="text-sm text-muted-foreground">{ben.operadora}</p>
                           </div>
-                          
+
                           {/* Vendedor Info */}
                           <div className="hidden lg:flex items-center gap-3">
                             <div className="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/20">
@@ -386,12 +411,12 @@ const Beneficiarios = () => {
                             >
                               {statusConfig[ben.status].label}
                             </Badge>
-                            
+
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
                                   className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
                                 >
                                   <MoreVertical className="h-4 w-4" />
@@ -402,7 +427,7 @@ const Beneficiarios = () => {
                                   <Edit className="h-4 w-4 mr-2" />
                                   Editar
                                 </DropdownMenuItem>
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
                                   onClick={() => handleDelete(ben as Beneficiario)}
                                   className="text-destructive focus:text-destructive focus:bg-destructive/10"
                                 >
@@ -437,15 +462,15 @@ const Beneficiarios = () => {
           </motion.div>
         )}
 
-        <AddBeneficiarioDialog 
-          open={openAddDialog} 
+        <AddBeneficiarioDialog
+          open={openAddDialog}
           onOpenChange={setOpenAddDialog}
           onSuccess={refetch}
         />
-        
+
         {selectedBeneficiario && (
-          <EditBeneficiarioDialog 
-            open={openEditDialog} 
+          <EditBeneficiarioDialog
+            open={openEditDialog}
             onOpenChange={setOpenEditDialog}
             beneficiario={selectedBeneficiario}
             onSuccess={refetch}
@@ -458,13 +483,13 @@ const Beneficiarios = () => {
             <AlertDialogHeader>
               <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
               <AlertDialogDescription>
-                Esta ação não pode ser desfeita. Isso excluirá permanentemente o beneficiário 
+                Esta ação não pode ser desfeita. Isso excluirá permanentemente o beneficiário
                 <span className="font-semibold text-foreground"> {beneficiarioToDelete?.nome}</span> e todos os pagamentos vinculados.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
-              <AlertDialogAction 
+              <AlertDialogAction
                 onClick={confirmDelete}
                 disabled={deleteMutation.isPending}
                 className="bg-destructive hover:bg-destructive/90"

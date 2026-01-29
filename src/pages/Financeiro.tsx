@@ -40,32 +40,48 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { financeiroAPI } from "@/lib/api";
-import { exportToCSV } from "@/lib/export"; // Import the new utility
+import { planosAPI, beneficiariosAPI, financeiroAPI } from "@/lib/api";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { exportToCSV } from "@/lib/export";
+
+// Update Interface to match likely Backend Response (Simplified)
+interface BackendPagamentoResponse {
+  id: string;
+  beneficiario_id: string; // The ID we need to join
+  valor: number;
+  vencimento: string; // ISO Date
+  status: "pago" | "pendente" | "vencido";
+  boleto_anexado?: string;
+  // Fallbacks if backend still sends flattened strings
+  beneficiario?: string;
+  plano?: string;
+}
 
 interface Pagamento {
   id: string;
-  beneficiario: string;
-  plano: string;
+  beneficiario: string; // Resolved Name
+  beneficiario_id: string;
+  plano: string; // Resolved Name
   valor: number;
-  vencimento: string;
+  vencimento: string; // Formatted Date
   status: "pago" | "pendente" | "vencido";
   boleto_anexado?: string;
 }
 
 const statusConfig = {
-  pago: { 
-    label: "Pago", 
+  pago: {
+    label: "Pago",
     className: "bg-success/15 text-success border-success/30",
     icon: CheckCircle2,
   },
-  pendente: { 
-    label: "Pendente", 
+  pendente: {
+    label: "Pendente",
     className: "bg-warning/15 text-warning border-warning/30",
     icon: Clock,
   },
-  vencido: { 
-    label: "Vencido", 
+  vencido: {
+    label: "Vencido",
     className: "bg-destructive/15 text-destructive border-destructive/30",
     icon: AlertCircle,
   },
@@ -81,16 +97,42 @@ const Financeiro = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const { data: pagamentos, isLoading } = useQuery<Pagamento[]>({
-    queryKey: ["pagamentos", filtroStatus, busca],
-    queryFn: () => financeiroAPI.getAll({ 
-      status: filtroStatus === "todos" ? undefined : filtroStatus, 
-      busca: busca || undefined 
+  // 1. Fetch Dependencies
+  const { data: planos } = useQuery<any[]>({
+    queryKey: ["planos"],
+    queryFn: () => planosAPI.getAll({}),
+  });
+
+  const { data: beneficiariosList } = useQuery<any[]>({
+    queryKey: ["beneficiarios"],
+    queryFn: () => beneficiariosAPI.getAll({}),
+  });
+
+  // 2. Fetch Pagamentos and JOIN
+  const { data: pagamentos, isLoading } = useQuery<BackendPagamentoResponse[], Error, Pagamento[]>({
+    queryKey: ["pagamentos", filtroStatus, busca, planos, beneficiariosList],
+    queryFn: () => financeiroAPI.getAll({
+      status: filtroStatus === "todos" ? undefined : filtroStatus,
+      busca: busca || undefined
+    }),
+    select: (data) => data.map(pag => {
+      const relatedBeneficiario = beneficiariosList?.find(b => b.id === pag.beneficiario_id);
+
+      const relatedPlanoId = relatedBeneficiario?.plano_id;
+      const relatedPlano = planos?.find(p => p.id === relatedPlanoId);
+
+      return {
+        ...pag,
+        beneficiario_id: pag.beneficiario_id,
+        beneficiario: relatedBeneficiario?.nome || pag.beneficiario || "Beneficiário Desconhecido",
+        plano: relatedPlano?.nome || pag.plano || "Plano Desconhecido",
+        vencimento: pag.vencimento ? format(new Date(pag.vencimento), "dd/MM/yyyy", { locale: ptBR }) : "Data Inválida",
+      } as Pagamento;
     }),
   });
 
   const anexarBoletoMutation = useMutation({
-    mutationFn: (data: { id: string, nome: string }) => 
+    mutationFn: (data: { id: string, nome: string }) =>
       financeiroAPI.anexarBoleto(data.id, data.nome), // Assuming URL upload is handled elsewhere or mocked
     onSuccess: () => {
       toast({
@@ -147,7 +189,7 @@ const Financeiro = () => {
     pendente: pagamentosData.filter(p => p.status === "pendente").reduce((acc, p) => acc + p.valor, 0),
     vencido: pagamentosData.filter(p => p.status === "vencido").reduce((acc, p) => acc + p.valor, 0),
   };
-  
+
   const handleExport = () => {
     if (pagamentosData.length === 0) {
       toast({
@@ -169,7 +211,7 @@ const Financeiro = () => {
     ];
 
     exportToCSV(pagamentosData, headers, `relatorio_pagamentos_${new Date().toISOString().split('T')[0]}.csv`);
-    
+
     toast({
       title: "Relatório Exportado",
       description: `Exportação de ${pagamentosData.length} pagamentos concluída com sucesso.`,
@@ -184,7 +226,7 @@ const Financeiro = () => {
         className="space-y-8"
       >
         {/* Header */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
@@ -198,8 +240,8 @@ const Financeiro = () => {
             </p>
           </div>
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="gap-2 shadow-lg"
               onClick={handleExport} // Use the new export function
               disabled={isLoading || pagamentosData.length === 0}
@@ -211,7 +253,7 @@ const Financeiro = () => {
         </motion.div>
 
         {/* Summary Cards */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
@@ -278,9 +320,9 @@ const Financeiro = () => {
               <div className="flex flex-col gap-4 sm:flex-row">
                 <div className="relative flex-1">
                   <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input 
-                    placeholder="Buscar por beneficiário ou plano..." 
-                    className="pl-11 h-12 bg-background/50 border-border/50 focus:bg-background transition-colors" 
+                  <Input
+                    placeholder="Buscar por beneficiário ou plano..."
+                    className="pl-11 h-12 bg-background/50 border-border/50 focus:bg-background transition-colors"
                     value={busca}
                     onChange={(e) => setBusca(e.target.value)}
                   />
@@ -393,9 +435,9 @@ const Financeiro = () => {
                                   {pag.status !== "pago" ? (
                                     <>
                                       <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                        <Button 
+                                        <Button
                                           variant="default"
-                                          size="sm" 
+                                          size="sm"
                                           className="h-9 gap-2 bg-success hover:bg-success/90 text-white shadow-lg shadow-success/25"
                                           onClick={() => setModalAnexar(pag)}
                                         >
@@ -403,10 +445,10 @@ const Financeiro = () => {
                                           <span className="hidden sm:inline">Anexar Boleto</span>
                                         </Button>
                                       </motion.div>
-                                      <Button 
-                                        variant="ghost" 
-                                        size="icon" 
-                                        className="h-9 w-9" 
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-9 w-9"
                                         title="Enviar lembrete"
                                         onClick={() => {
                                           // Mocked Email Send
@@ -420,9 +462,9 @@ const Financeiro = () => {
                                       </Button>
                                     </>
                                   ) : (
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm" 
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
                                       className="h-9 gap-2"
                                       title={pag.boleto_anexado}
                                     >
@@ -464,7 +506,7 @@ const Financeiro = () => {
             </DialogDescription>
           </DialogHeader>
 
-          <motion.div 
+          <motion.div
             className={cn(
               "border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer",
               isDragging ? "border-success bg-success/5 scale-[1.02]" : "border-border hover:border-muted-foreground/50 hover:bg-muted/30",
@@ -484,9 +526,9 @@ const Financeiro = () => {
               className="hidden"
               onChange={handleFileChange}
             />
-            
+
             {arquivoSelecionado ? (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className="space-y-3"
@@ -537,8 +579,8 @@ const Financeiro = () => {
           </motion.div>
 
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setModalAnexar(null);
                 setArquivoSelecionado(null);
@@ -548,7 +590,7 @@ const Financeiro = () => {
               Cancelar
             </Button>
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-              <Button 
+              <Button
                 onClick={handleAnexarBoleto}
                 disabled={!arquivoSelecionado || anexarBoletoMutation.isPending}
                 className="bg-success hover:bg-success/90 text-white shadow-lg shadow-success/25"
