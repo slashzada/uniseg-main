@@ -120,6 +120,7 @@ const Beneficiarios = () => {
       vendedor_id: filtroVendedor === "todos" ? undefined : filtroVendedor,
       busca: busca || undefined
     }),
+    refetchInterval: 30000, // Refetch every 30 seconds
     select: (data) => data.map(ben => {
       const relatedPlano = planos?.find(p => p.id === ben.plano_id);
       const relatedVendedor = vendedores?.find(v => v.id === ben.vendedor_id);
@@ -175,7 +176,7 @@ const Beneficiarios = () => {
     mutationFn: (data: { id: string, nome: string }) =>
       financeiroAPI.anexarBoleto(data.id, data.nome),
     onSuccess: () => {
-      toast({ title: "✅ Boleto anexado!", description: `Pagamento marcado como pago.` });
+      toast({ title: "✅ Comprovante anexado!", description: `Pagamento enviado para análise do financeiro.` });
       // Invalidate both financeiro and pending payments list if needed, though mostly financeiro
       queryClient.invalidateQueries({ queryKey: ["pagamentos"] });
       setModalAnexar(null);
@@ -401,8 +402,8 @@ const Beneficiarios = () => {
         <Dialog open={!!modalAnexar} onOpenChange={() => { setModalAnexar(null); setArquivoSelecionado(null); }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-xl"><div className="h-10 w-10 rounded-xl bg-success/10 flex items-center justify-center"><Paperclip className="h-5 w-5 text-success" /></div>Anexar Boleto Pago</DialogTitle>
-              <DialogDescription className="text-base">Anexe o comprovante de pagamento de <strong>{modalAnexar?.nome}</strong>. O status será marcado como pago.</DialogDescription>
+              <DialogTitle className="flex items-center gap-2 text-xl"><div className="h-10 w-10 rounded-xl bg-success/10 flex items-center justify-center"><Paperclip className="h-5 w-5 text-success" /></div>Anexar Comprovante de Pagamento</DialogTitle>
+              <DialogDescription className="text-base">Anexe o comprovante de pagamento de <strong>{modalAnexar?.nome}</strong>. O pagamento será enviado para análise do financeiro.</DialogDescription>
             </DialogHeader>
             <motion.div className={cn("border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer", isDragging ? "border-success bg-success/5 scale-[1.02]" : "border-border hover:border-muted-foreground/50 hover:bg-muted/30", arquivoSelecionado && "border-success bg-success/5")} onClick={() => fileInputRef.current?.click()} onDrop={handleDrop} onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
               <input ref={fileInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg" className="hidden" onChange={handleFileChange} />
@@ -419,7 +420,7 @@ const Beneficiarios = () => {
             <DialogFooter className="gap-2 sm:gap-0">
               <Button variant="outline" onClick={() => { setModalAnexar(null); setArquivoSelecionado(null); }} disabled={anexarBoletoMutation.isPending}>Cancelar</Button>
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <Button onClick={handleAnexarBoleto} disabled={!arquivoSelecionado || anexarBoletoMutation.isPending} className="bg-success hover:bg-success/90 text-white shadow-lg shadow-success/25">{anexarBoletoMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}Anexar e Marcar como Pago</Button>
+                <Button onClick={handleAnexarBoleto} disabled={!arquivoSelecionado || anexarBoletoMutation.isPending} className="bg-success hover:bg-success/90 text-white shadow-lg shadow-success/25">{anexarBoletoMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}Anexar e Enviar para Análise</Button>
               </motion.div>
             </DialogFooter>
           </DialogContent>

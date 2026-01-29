@@ -10,6 +10,23 @@ export const getPagamentos = async (req, res, next) => {
       .select('*')
       .order('vencimento', { ascending: true });
 
+    // RBAC: Filter by vendedor if user is Vendedor
+    if (req.user && req.user.papel === 'Vendedor' && req.user.vendedor_id) {
+      // Get beneficiarios for this vendedor first
+      const { data: beneficiarios } = await supabase
+        .from('beneficiarios')
+        .select('id')
+        .eq('vendedor_id', req.user.vendedor_id);
+
+      const beneficiarioIds = beneficiarios?.map(b => b.id) || [];
+      if (beneficiarioIds.length > 0) {
+        query = query.in('beneficiario_id', beneficiarioIds);
+      } else {
+        // No beneficiarios for this vendedor, return empty
+        return res.json([]);
+      }
+    }
+
     if (status) {
       query = query.eq('status', status);
     }
@@ -178,6 +195,8 @@ export const confirmarPagamento = async (req, res, next) => {
       .from('pagamentos')
       .update({
         status: 'pago', // Final step
+        confirmado_por: req.user.id, // Track who confirmed
+        confirmado_em: new Date().toISOString(), // Track when confirmed
         updated_at: new Date().toISOString()
       })
       .eq('id', id)

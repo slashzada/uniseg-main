@@ -3,14 +3,14 @@ import jwt from 'jsonwebtoken';
 export const authenticate = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'No token provided' });
     }
 
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
+
     req.user = decoded;
     next();
   } catch (error) {
@@ -31,3 +31,9 @@ export const authorize = (...roles) => {
     next();
   };
 };
+
+// Helper middleware for common permission checks
+export const requireAdmin = authorize('Admin');
+export const requireFinanceiroOrAdmin = authorize('Admin', 'Financeiro');
+export const requireNotVendedor = authorize('Admin', 'Financeiro');
+

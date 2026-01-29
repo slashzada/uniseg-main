@@ -37,6 +37,7 @@ const Dashboard = () => {
   const { data: stats, isLoading } = useQuery<DashboardStats>({
     queryKey: ["dashboardStats"],
     queryFn: dashboardAPI.getStats,
+    refetchInterval: 30000, // Refetch every 30 seconds
   });
 
   const getGreeting = () => {
@@ -53,7 +54,7 @@ const Dashboard = () => {
     day: "numeric",
   });
 
-  const formatCurrency = (value: number) => 
+  const formatCurrency = (value: number) =>
     `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
   const formatPercent = (value: number) => `${value.toFixed(1)}%`;

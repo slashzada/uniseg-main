@@ -23,6 +23,7 @@ export function RevenueChart() {
     queryKey: ["dashboardRevenue"],
     queryFn: dashboardAPI.getRevenue,
     initialData: { meses: [], receitas: [] },
+    refetchInterval: 30000, // Refetch every 30 seconds
   });
 
   // Combine meses and receitas into a format suitable for Recharts
@@ -30,7 +31,7 @@ export function RevenueChart() {
     month,
     receita: data.receitas[index] || 0,
     // Mocking despesas for visualization, as the backend only returns revenue
-    despesas: (data.receitas[index] || 0) * 0.6, 
+    despesas: (data.receitas[index] || 0) * 0.6,
   }));
 
   if (isLoading) {
@@ -50,7 +51,7 @@ export function RevenueChart() {
       <Card className="border-0 shadow-xl shadow-foreground/5 bg-card/80 backdrop-blur-sm overflow-hidden">
         {/* Decorative gradient */}
         <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-gradient-to-bl from-success/5 to-transparent pointer-events-none" />
-        
+
         <CardHeader className="pb-2 relative">
           <div className="flex items-center justify-between">
             <div>

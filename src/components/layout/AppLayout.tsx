@@ -138,10 +138,9 @@ export function AppLayout({ children }: AppLayoutProps) {
           <ul className="space-y-1">
             {navItems
               .filter(item => {
+                // Hide specific tabs for Vendedor role
                 if (user?.papel === "Vendedor") {
-                  return !["Financeiro", "Configurações", "Operadoras", "Planos"].includes(item.title) || ["Operadoras", "Planos"].includes(item.title); // Keep Operadoras/Planos visible but restricted actions inside
-                  // Simplify: Just exclude Financeiro and Configurações
-                  return !["Financeiro", "Configurações"].includes(item.title);
+                  return !["Financeiro", "Configurações", "Operadoras", "Planos"].includes(item.title);
                 }
                 return true;
               })

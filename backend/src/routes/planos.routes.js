@@ -6,7 +6,7 @@ import {
   updatePlano,
   deletePlano
 } from '../controllers/planos.controller.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireNotVendedor } from '../middleware/auth.js';
 import { body } from 'express-validator';
 
 const router = express.Router();
@@ -17,7 +17,9 @@ router.get('/:id', getPlanoById);
 
 router.use(authenticate);
 
+// Protected routes - Only Admin and Financeiro can create/update/delete plans
 router.post('/',
+  requireNotVendedor,
   [
     body('nome').notEmpty().trim(),
     body('operadora_id').isUUID(),
@@ -29,6 +31,7 @@ router.post('/',
   createPlano
 );
 router.put('/:id',
+  requireNotVendedor,
   [
     body('nome').optional().notEmpty().trim(),
     body('valor').optional().isFloat({ min: 0 }),
@@ -38,6 +41,6 @@ router.put('/:id',
   ],
   updatePlano
 );
-router.delete('/:id', deletePlano);
+router.delete('/:id', requireNotVendedor, deletePlano);
 
 export default router;

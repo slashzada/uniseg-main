@@ -1,11 +1,13 @@
 import express from 'express';
 import { getConfiguracoes, updateConfiguracoes } from '../controllers/configuracoes.controller.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { body } from 'express-validator';
 
 const router = express.Router();
 
+// Configuration routes are only accessible by Admin
 router.use(authenticate);
+router.use(requireAdmin);
 
 router.get('/', getConfiguracoes);
 router.put('/',

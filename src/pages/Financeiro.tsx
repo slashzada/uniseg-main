@@ -123,6 +123,7 @@ const Financeiro = () => {
       status: filtroStatus === "todos" ? undefined : filtroStatus,
       busca: busca || undefined
     }),
+    refetchInterval: 30000, // Refetch every 30 seconds
     select: (data) => data.map(pag => {
       const relatedBeneficiario = beneficiariosList?.find(b => b.id === pag.beneficiario_id);
 
@@ -348,6 +349,7 @@ const Financeiro = () => {
                     <SelectItem value="pago">Pagos</SelectItem>
                     <SelectItem value="pendente">Pendentes</SelectItem>
                     <SelectItem value="vencido">Vencidos</SelectItem>
+                    <SelectItem value="comprovante_anexado">Em Análise</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -444,7 +446,24 @@ const Financeiro = () => {
                               </td>
                               <td className="px-6 py-5">
                                 <div className="flex justify-end gap-2">
-                                  {pag.status !== "pago" ? (
+                                  {pag.status === "comprovante_anexado" && user?.papel !== "Vendedor" ? (
+                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                      <Button
+                                        variant="default"
+                                        size="sm"
+                                        className="h-9 gap-2 bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/25"
+                                        onClick={() => confirmarPagamentoMutation.mutate(pag.id)}
+                                        disabled={confirmarPagamentoMutation.isPending}
+                                      >
+                                        {confirmarPagamentoMutation.isPending ? (
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <CheckCircle2 className="h-4 w-4" />
+                                        )}
+                                        <span className="hidden sm:inline">Confirmar Pagamento</span>
+                                      </Button>
+                                    </motion.div>
+                                  ) : pag.status !== "pago" ? (
                                     <>
                                       <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                                         <Button

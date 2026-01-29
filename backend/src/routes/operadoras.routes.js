@@ -6,7 +6,7 @@ import {
   updateOperadora,
   deleteOperadora
 } from '../controllers/operadoras.controller.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireNotVendedor } from '../middleware/auth.js';
 import { body } from 'express-validator';
 
 const router = express.Router();
@@ -15,10 +15,11 @@ const router = express.Router();
 router.get('/', getOperadoras);
 router.get('/:id', getOperadoraById);
 
-// Protected routes
+// Protected routes - Only Admin and Financeiro can create/update/delete operadoras
 router.use(authenticate);
 
 router.post('/',
+  requireNotVendedor,
   [
     body('nome').notEmpty().trim(),
     body('cnpj').notEmpty().withMessage('CNPJ is required'),
@@ -30,13 +31,13 @@ router.post('/',
   createOperadora
 );
 router.put('/:id',
+  requireNotVendedor,
   [
     body('nome').optional().notEmpty().trim(),
     body('status').optional().isIn(['ativa', 'inativa'])
   ],
   updateOperadora
 );
-router.delete('/:id', deleteOperadora);
-router.delete('/:id', deleteOperadora);
+router.delete('/:id', requireNotVendedor, deleteOperadora);
 
 export default router;

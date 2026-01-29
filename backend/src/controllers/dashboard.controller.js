@@ -2,44 +2,97 @@ import { supabase } from '../config/supabase.js';
 
 export const getStats = async (req, res, next) => {
   try {
+    // Get beneficiario IDs for this vendedor if applicable
+    let beneficiarioIds = null;
+    if (req.user && req.user.papel === 'Vendedor' && req.user.vendedor_id) {
+      const { data: beneficiarios } = await supabase
+        .from('beneficiarios')
+        .select('id')
+        .eq('vendedor_id', req.user.vendedor_id);
+
+      beneficiarioIds = beneficiarios?.map(b => b.id) || [];
+
+      // If vendedor has no beneficiarios, return zeros
+      if (beneficiarioIds.length === 0) {
+        return res.json({
+          beneficiariosAtivos: 0,
+          totalBeneficiarios: 0,
+          receitaMensal: 0,
+          taxaAdimplencia: 0,
+          pagamentosVencidos: 0,
+          totalVencido: 0
+        });
+      }
+    }
+
     // Beneficiários ativos
-    const { count: beneficiariosAtivos } = await supabase
+    let queryBenAtivos = supabase
       .from('beneficiarios')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'ativo');
 
+    if (beneficiarioIds) {
+      queryBenAtivos = queryBenAtivos.in('id', beneficiarioIds);
+    }
+
+    const { count: beneficiariosAtivos } = await queryBenAtivos;
+
     // Total de beneficiários
-    const { count: totalBeneficiarios } = await supabase
+    let queryBenTotal = supabase
       .from('beneficiarios')
       .select('*', { count: 'exact', head: true });
+
+    if (beneficiarioIds) {
+      queryBenTotal = queryBenTotal.in('id', beneficiarioIds);
+    }
+
+    const { count: totalBeneficiarios } = await queryBenTotal;
 
     // Receita mensal (soma dos pagamentos pagos do mês atual)
     const inicioMes = new Date();
     inicioMes.setDate(1);
     inicioMes.setHours(0, 0, 0, 0);
 
-    const { data: pagamentosMes } = await supabase
+    let queryPagMes = supabase
       .from('pagamentos')
       .select('valor')
       .eq('status', 'pago')
       .gte('created_at', inicioMes.toISOString());
 
+    if (beneficiarioIds) {
+      queryPagMes = queryPagMes.in('beneficiario_id', beneficiarioIds);
+    }
+
+    const { data: pagamentosMes } = await queryPagMes;
+
     const receitaMensal = pagamentosMes?.reduce((acc, p) => acc + (p.valor || 0), 0) || 0;
 
     // Taxa de adimplência
-    const { data: todosPagamentos } = await supabase
+    let queryTodosPag = supabase
       .from('pagamentos')
       .select('status');
+
+    if (beneficiarioIds) {
+      queryTodosPag = queryTodosPag.in('beneficiario_id', beneficiarioIds);
+    }
+
+    const { data: todosPagamentos } = await queryTodosPag;
 
     const totalPagamentos = todosPagamentos?.length || 0;
     const pagos = todosPagamentos?.filter(p => p.status === 'pago').length || 0;
     const taxaAdimplencia = totalPagamentos > 0 ? (pagos / totalPagamentos) * 100 : 0;
 
     // Pagamentos vencidos
-    const { data: pagamentosVencidos } = await supabase
+    let queryPagVenc = supabase
       .from('pagamentos')
       .select('valor')
       .eq('status', 'vencido');
+
+    if (beneficiarioIds) {
+      queryPagVenc = queryPagVenc.in('beneficiario_id', beneficiarioIds);
+    }
+
+    const { data: pagamentosVencidos } = await queryPagVenc;
 
     const totalVencido = pagamentosVencidos?.reduce((acc, p) => acc + (p.valor || 0), 0) || 0;
     const qtdVencidos = pagamentosVencidos?.length || 0;
@@ -59,6 +112,17 @@ export const getStats = async (req, res, next) => {
 
 export const getRevenueChart = async (req, res, next) => {
   try {
+    // Get beneficiario IDs for this vendedor if applicable
+    let beneficiarioIds = null;
+    if (req.user && req.user.papel === 'Vendedor' && req.user.vendedor_id) {
+      const { data: beneficiarios } = await supabase
+        .from('beneficiarios')
+        .select('id')
+        .eq('vendedor_id', req.user.vendedor_id);
+
+      beneficiarioIds = beneficiarios?.map(b => b.id) || [];
+    }
+
     // Últimos 6 meses
     const meses = [];
     const receitas = [];
@@ -72,12 +136,18 @@ export const getRevenueChart = async (req, res, next) => {
       const proximoMes = new Date(data);
       proximoMes.setMonth(proximoMes.getMonth() + 1);
 
-      const { data: pagamentos } = await supabase
+      let queryPag = supabase
         .from('pagamentos')
         .select('valor')
         .eq('status', 'pago')
         .gte('created_at', data.toISOString())
         .lt('created_at', proximoMes.toISOString());
+
+      if (beneficiarioIds) {
+        queryPag = queryPag.in('beneficiario_id', beneficiarioIds);
+      }
+
+      const { data: pagamentos } = await queryPag;
 
       const receita = pagamentos?.reduce((acc, p) => acc + (p.valor || 0), 0) || 0;
 
@@ -90,3 +160,4 @@ export const getRevenueChart = async (req, res, next) => {
     next(error);
   }
 };
+
