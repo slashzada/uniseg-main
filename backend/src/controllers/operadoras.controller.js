@@ -6,21 +6,8 @@ export const getOperadoras = async (req, res, next) => {
     const { status } = req.query;
     console.log(`[getOperadoras] Fetching operators. Status filter: ${status || 'all'}`);
 
-    // DEBUG: Mock data to verify frontend-backend connection
-    const mockData = [
-      {
-        id: 'debug-1',
-        nome: 'DEBUG: TEST CONN',
-        status: 'ativa',
-        cor: 'from-primary to-primary/80',
-        planos: 0,
-        beneficiarios: 0
-      }
-    ];
-    console.log('[getOperadoras] Returning MOCK data');
-    res.json(mockData);
+    // console.log(`[getOperadoras] Fetching operators. Status filter: ${status || 'all'}`);
 
-    /* TEMPORARILY DISABLED DB QUERY
     let query = supabase
       .from('operadoras')
       .select(`
@@ -41,7 +28,14 @@ export const getOperadoras = async (req, res, next) => {
       return res.status(400).json({ error: error.message });
     }
 
-    console.log(`[getOperadoras] Successfully fetched ${data.length} operators`);
+    // DEBUG: If empty, try a simple query to check if it's a join issue or RLS
+    if (!data || data.length === 0) {
+      console.log('[getOperadoras] Main query returned 0 rows. Testing simple SELECT *...');
+      const { count } = await supabase.from('operadoras').select('*', { count: 'exact', head: true });
+      console.log(`[getOperadoras] Simple SELECT count: ${count}`);
+    } else {
+      console.log(`[getOperadoras] Successfully fetched ${data.length} operators`);
+    }
 
     // Formatar resposta
     const operadoras = data.map(op => ({
@@ -51,7 +45,6 @@ export const getOperadoras = async (req, res, next) => {
     }));
 
     res.json(operadoras);
-    */
   } catch (error) {
     console.error('[getOperadoras] Unexpected error:', error);
     next(error);
