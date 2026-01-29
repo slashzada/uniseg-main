@@ -10,11 +10,7 @@ export const getOperadoras = async (req, res, next) => {
 
     let query = supabase
       .from('operadoras')
-      .select(`
-        *,
-        planos:planos(count),
-        beneficiarios:beneficiarios(count)
-      `)
+      .select('*')
       .order('nome', { ascending: true });
 
     if (status) {
