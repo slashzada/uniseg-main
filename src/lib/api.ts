@@ -1,5 +1,7 @@
 // Configuração da API
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:10000/api';
+// Hardcoded for debugging to ensure connection
+const API_BASE_URL = 'https://uniseg-main.onrender.com/api';
+console.log('[API] Using Base URL:', API_BASE_URL);
 
 // Função auxiliar para fazer requisições
 async function request<T>(
@@ -7,7 +9,7 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = localStorage.getItem('uniseguros_token');
-  
+
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...options.headers,
@@ -37,11 +39,11 @@ export const authAPI = {
       method: 'POST',
       body: JSON.stringify({ email, senha }),
     });
-    
+
     // Salvar token
     localStorage.setItem('uniseguros_token', data.token);
     localStorage.setItem('uniseguros_user', JSON.stringify(data.user));
-    
+
     return data;
   },
 
@@ -50,10 +52,10 @@ export const authAPI = {
       method: 'POST',
       body: JSON.stringify({ nome, email, senha, papel }),
     });
-    
+
     localStorage.setItem('uniseguros_token', data.token);
     localStorage.setItem('uniseguros_user', JSON.stringify(data.user));
-    
+
     return data;
   },
 
@@ -125,10 +127,10 @@ export const financeiroAPI = {
   getById: (id: string) => request<any>(`/financeiro/${id}`),
   create: (data: any) => request<any>('/financeiro', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: any) => request<any>(`/financeiro/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  anexarBoleto: (id: string, boleto_nome: string, boleto_url?: string) => 
-    request<any>(`/financeiro/${id}/boleto`, { 
-      method: 'POST', 
-      body: JSON.stringify({ boleto_nome, boleto_url }) 
+  anexarBoleto: (id: string, boleto_nome: string, boleto_url?: string) =>
+    request<any>(`/financeiro/${id}/boleto`, {
+      method: 'POST',
+      body: JSON.stringify({ boleto_nome, boleto_url })
     }),
   delete: (id: string) => request<{ message: string }>(`/financeiro/${id}`, { method: 'DELETE' }),
 };
@@ -142,6 +144,6 @@ export const dashboardAPI = {
 // API de Configurações Globais (New)
 export const configuracoesAPI = {
   get: () => request<any>('/configuracoes'),
-  update: (data: { taxa_admin?: number; dias_carencia?: number; multa_atraso?: number }) => 
+  update: (data: { taxa_admin?: number; dias_carencia?: number; multa_atraso?: number }) =>
     request<any>('/configuracoes', { method: 'PUT', body: JSON.stringify(data) }),
 };
