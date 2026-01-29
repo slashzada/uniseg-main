@@ -11,10 +11,13 @@ import { body } from 'express-validator';
 
 const router = express.Router();
 
-router.use(authenticate);
-
+// Public routes (for debugging/listing)
 router.get('/', getOperadoras);
 router.get('/:id', getOperadoraById);
+
+// Protected routes
+router.use(authenticate);
+
 router.post('/',
   [
     body('nome').notEmpty().trim(),
@@ -33,6 +36,7 @@ router.put('/:id',
   ],
   updateOperadora
 );
+router.delete('/:id', deleteOperadora);
 router.delete('/:id', deleteOperadora);
 
 export default router;
