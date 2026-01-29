@@ -5,8 +5,6 @@ import {
   createPagamento,
   updatePagamento,
   deletePagamento,
-  updatePagamento,
-  deletePagamento,
   anexarBoleto,
   confirmarPagamento
 } from '../controllers/financeiro.controller.js';
