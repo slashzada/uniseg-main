@@ -5,7 +5,7 @@ export const getVendedores = async (req, res, next) => {
   try {
     const { data, error } = await supabase
       .from('vendedores')
-      .select('id, nome, email, comissao, status, created_at, updated_at')
+      .select('id, nome, email, comissao, created_at, updated_at')
       .order('nome', { ascending: true });
 
     if (error) {
@@ -33,8 +33,7 @@ export const createVendedor = async (req, res, next) => {
         nome,
         email,
         comissao: comissao || 0,
-        created_at: new Date().toISOString(),
-        status: 'ativo'
+        created_at: new Date().toISOString()
       })
       .select()
       .single();

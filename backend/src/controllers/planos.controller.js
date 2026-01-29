@@ -84,7 +84,6 @@ export const createPlano = async (req, res, next) => {
         valor,
         tipo,
         popular: popular || false,
-        descricao: descricao || null, // Added description field
         created_at: new Date().toISOString()
       })
       .select()
