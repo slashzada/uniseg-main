@@ -28,31 +28,41 @@ export const getOperadoras = async (req, res, next) => {
       return res.status(400).json({ error: error.message });
     }
 
+    // Prepare response list safely to avoid mutating 'data' or crashing on null
+    let responseList = data ? [...data] : [];
+
     // DEBUG: If empty, try a simple query to check if it's a join issue or RLS
-    if (!data || data.length === 0) {
+    if (responseList.length === 0) {
       console.log('[getOperadoras] Main query returned 0 rows. Testing simple SELECT *...');
-      const { count } = await supabase.from('operadoras').select('*', { count: 'exact', head: true });
+
+      let count = 0;
+      try {
+        const result = await supabase.from('operadoras').select('*', { count: 'exact', head: true });
+        count = result.count || 0;
+      } catch (e) {
+        console.error('Count query failed:', e);
+      }
+
       console.log(`[getOperadoras] Simple SELECT count: ${count}`);
 
       // INJECT DEBUG INFO INTO RESPONSE IF EMPTY
-      // This allows the user to see server-state in the frontend list
       const hasServiceKey = !!process.env.SUPABASE_SERVICE_KEY;
-      const hasAnonKey = !!process.env.SUPABASE_KEY;
 
-      data.push({
-        id: 'debug-info',
-        nome: `DEBUG: ServiceKey=${hasServiceKey} | Rows=${count}`,
-        status: 'ativa',
-        cor: 'from-destructive to-destructive/80',
+      responseList.push({
+        id: 'system-diag',
+        nome: `[SYSTEM] DB_Rows:${count} | SvcKey:${hasServiceKey}`,
+        // Use the requested status so it passes frontend filters
+        status: status || 'ativa',
+        cor: 'from-gray-500 to-gray-700',
         planos: 0,
         beneficiarios: 0
       });
     } else {
-      console.log(`[getOperadoras] Successfully fetched ${data.length} operators`);
+      console.log(`[getOperadoras] Successfully fetched ${responseList.length} operators`);
     }
 
     // Formatar resposta
-    const operadoras = data.map(op => ({
+    const operadoras = responseList.map(op => ({
       ...op,
       planos: op.planos?.[0]?.count || 0,
       beneficiarios: op.beneficiarios?.[0]?.count || 0
