@@ -6,6 +6,21 @@ export const getOperadoras = async (req, res, next) => {
     const { status } = req.query;
     console.log(`[getOperadoras] Fetching operators. Status filter: ${status || 'all'}`);
 
+    // DEBUG: Mock data to verify frontend-backend connection
+    const mockData = [
+      {
+        id: 'debug-1',
+        nome: 'DEBUG: TEST CONN',
+        status: 'ativa',
+        cor: 'from-primary to-primary/80',
+        planos: 0,
+        beneficiarios: 0
+      }
+    ];
+    console.log('[getOperadoras] Returning MOCK data');
+    res.json(mockData);
+
+    /* TEMPORARILY DISABLED DB QUERY
     let query = supabase
       .from('operadoras')
       .select(`
@@ -36,6 +51,7 @@ export const getOperadoras = async (req, res, next) => {
     }));
 
     res.json(operadoras);
+    */
   } catch (error) {
     console.error('[getOperadoras] Unexpected error:', error);
     next(error);
