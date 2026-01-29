@@ -33,6 +33,20 @@ export const getOperadoras = async (req, res, next) => {
       console.log('[getOperadoras] Main query returned 0 rows. Testing simple SELECT *...');
       const { count } = await supabase.from('operadoras').select('*', { count: 'exact', head: true });
       console.log(`[getOperadoras] Simple SELECT count: ${count}`);
+
+      // INJECT DEBUG INFO INTO RESPONSE IF EMPTY
+      // This allows the user to see server-state in the frontend list
+      const hasServiceKey = !!process.env.SUPABASE_SERVICE_KEY;
+      const hasAnonKey = !!process.env.SUPABASE_KEY;
+
+      data.push({
+        id: 'debug-info',
+        nome: `DEBUG: ServiceKey=${hasServiceKey} | Rows=${count}`,
+        status: 'ativa',
+        cor: 'from-destructive to-destructive/80',
+        planos: 0,
+        beneficiarios: 0
+      });
     } else {
       console.log(`[getOperadoras] Successfully fetched ${data.length} operators`);
     }
