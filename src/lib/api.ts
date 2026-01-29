@@ -1,7 +1,18 @@
 // Configuração da API
 // Hardcoded for debugging to ensure connection
 const API_BASE_URL = 'https://uniseg-main.onrender.com/api';
-console.log('[API] Using Base URL:', API_BASE_URL);
+// console.log('[API] Using Base URL:', API_BASE_URL);
+
+// Helper to clean undefined/null params
+const cleanParams = (params: any) => {
+  const newParams: any = {};
+  Object.keys(params || {}).forEach(key => {
+    if (params[key] !== undefined && params[key] !== null && params[key] !== '') {
+      newParams[key] = params[key];
+    }
+  });
+  return newParams;
+};
 
 // Função auxiliar para fazer requisições
 async function request<T>(
@@ -89,7 +100,7 @@ export const operadorasAPI = {
 // API de Planos
 export const planosAPI = {
   getAll: (params?: { tipo?: string; operadora_id?: string; busca?: string }) => {
-    const query = new URLSearchParams(params as any).toString();
+    const query = new URLSearchParams(cleanParams(params)).toString();
     return request<any[]>(`/planos${query ? `?${query}` : ''}`);
   },
   getById: (id: string) => request<any>(`/planos/${id}`),
@@ -101,7 +112,7 @@ export const planosAPI = {
 // API de Beneficiários
 export const beneficiariosAPI = {
   getAll: (params?: { status?: string; vendedor_id?: string; busca?: string }) => {
-    const query = new URLSearchParams(params as any).toString();
+    const query = new URLSearchParams(cleanParams(params)).toString();
     return request<any[]>(`/beneficiarios${query ? `?${query}` : ''}`);
   },
   getById: (id: string) => request<any>(`/beneficiarios/${id}`),
@@ -121,7 +132,7 @@ export const vendedoresAPI = {
 // API de Financeiro
 export const financeiroAPI = {
   getAll: (params?: { status?: string; busca?: string }) => {
-    const query = new URLSearchParams(params as any).toString();
+    const query = new URLSearchParams(cleanParams(params)).toString();
     return request<any[]>(`/financeiro${query ? `?${query}` : ''}`);
   },
   getById: (id: string) => request<any>(`/financeiro/${id}`),
