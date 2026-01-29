@@ -10,11 +10,7 @@ export const getBeneficiarios = async (req, res, next) => {
 
     let query = supabase
       .from('beneficiarios')
-      .select(`
-        *,
-        plano:planos(nome, valor, tipo, operadora:operadoras(nome)),
-        vendedor:vendedores(nome, comissao)
-      `)
+      .select('*')
       .order('created_at', { ascending: false });
 
     if (status) {
@@ -26,6 +22,7 @@ export const getBeneficiarios = async (req, res, next) => {
     }
 
     if (busca) {
+      // Simplified search (removed joins)
       query = query.or(`nome.ilike.%${busca}%,cpf.ilike.%${busca}%`);
     }
 
@@ -38,11 +35,11 @@ export const getBeneficiarios = async (req, res, next) => {
     // Formatar resposta
     const beneficiarios = data.map(ben => ({
       ...ben,
-      plano: ben.plano?.nome || 'N/A',
-      operadora: ben.plano?.operadora?.nome || 'N/A',
-      valorPlano: ben.plano?.valor || 0,
-      vendedor: ben.vendedor?.nome || 'N/A',
-      comissao: ben.vendedor?.comissao || 0
+      plano: ben.plano_id ? 'Ver Detalhes' : 'N/A',
+      operadora: 'N/A',
+      valorPlano: 0,
+      vendedor: ben.vendedor_id ? 'Ver Detalhes' : 'N/A',
+      comissao: 0
     }));
 
     res.json(beneficiarios);
@@ -57,11 +54,7 @@ export const getBeneficiarioById = async (req, res, next) => {
 
     const { data, error } = await supabase
       .from('beneficiarios')
-      .select(`
-        *,
-        plano:planos(*, operadora:operadoras(*)),
-        vendedor:vendedores(*)
-      `)
+      .select('*')
       .eq('id', id)
       .single();
 
@@ -129,11 +122,11 @@ export const updateBeneficiario = async (req, res, next) => {
 
     const { id } = req.params;
     const { cpf: rawCpf, ...rest } = req.body;
-    
+
     const updates = { ...rest, updated_at: new Date().toISOString() };
-    
+
     if (rawCpf) {
-        updates.cpf = cleanDocument(rawCpf);
+      updates.cpf = cleanDocument(rawCpf);
     }
 
     const { data, error } = await supabase

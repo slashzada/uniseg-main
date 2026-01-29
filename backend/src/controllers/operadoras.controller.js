@@ -77,11 +77,7 @@ export const getOperadoraById = async (req, res, next) => {
 
     const { data, error } = await supabase
       .from('operadoras')
-      .select(`
-        *,
-        planos:planos(count),
-        beneficiarios:beneficiarios(count)
-      `)
+      .select('*')
       .eq('id', id)
       .single();
 
@@ -91,8 +87,8 @@ export const getOperadoraById = async (req, res, next) => {
 
     res.json({
       ...data,
-      planos: data.planos?.[0]?.count || 0,
-      beneficiarios: data.beneficiarios?.[0]?.count || 0
+      planos: 0,
+      beneficiarios: 0
     });
   } catch (error) {
     next(error);

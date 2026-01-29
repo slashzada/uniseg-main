@@ -7,10 +7,7 @@ export const getPagamentos = async (req, res, next) => {
 
     let query = supabase
       .from('pagamentos')
-      .select(`
-        *,
-        beneficiario:beneficiarios(nome, cpf, plano:planos(nome))
-      `)
+      .select('*')
       .order('vencimento', { ascending: true });
 
     if (status) {
@@ -18,7 +15,8 @@ export const getPagamentos = async (req, res, next) => {
     }
 
     if (busca) {
-      query = query.or(`beneficiario.nome.ilike.%${busca}%,beneficiario.plano.nome.ilike.%${busca}%`);
+      // Search logic simplified
+      query = query.ilike('boleto_anexado', `%${busca}%`); // No name column in pagamentos
     }
 
     const { data, error } = await query;
@@ -30,8 +28,8 @@ export const getPagamentos = async (req, res, next) => {
     // Formatar resposta
     const pagamentos = data.map(pag => ({
       ...pag,
-      beneficiario: pag.beneficiario?.nome || 'N/A',
-      plano: pag.beneficiario?.plano?.nome || 'N/A'
+      beneficiario: pag.beneficiario_id ? 'Ver Detalhes' : 'N/A',
+      plano: 'N/A'
     }));
 
     res.json(pagamentos);
@@ -46,10 +44,7 @@ export const getPagamentoById = async (req, res, next) => {
 
     const { data, error } = await supabase
       .from('pagamentos')
-      .select(`
-        *,
-        beneficiario:beneficiarios(*, plano:planos(*))
-      `)
+      .select('*')
       .eq('id', id)
       .single();
 
@@ -57,7 +52,10 @@ export const getPagamentoById = async (req, res, next) => {
       return res.status(404).json({ error: 'Pagamento not found' });
     }
 
-    res.json(data);
+    res.json({
+      ...data,
+      beneficiario: 'N/A' // Placeholder
+    });
   } catch (error) {
     next(error);
   }

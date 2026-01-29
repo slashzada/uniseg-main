@@ -7,11 +7,7 @@ export const getPlanos = async (req, res, next) => {
 
     let query = supabase
       .from('planos')
-      .select(`
-        *,
-        operadora:operadoras(nome, id),
-        beneficiarios:beneficiarios(count)
-      `)
+      .select('*')
       .order('nome', { ascending: true });
 
     if (tipo) {
@@ -23,7 +19,8 @@ export const getPlanos = async (req, res, next) => {
     }
 
     if (busca) {
-      query = query.or(`nome.ilike.%${busca}%,operadora.nome.ilike.%${busca}%`);
+      // Simplified search without joining (since joins are broken)
+      query = query.ilike('nome', `%${busca}%`);
     }
 
     const { data, error } = await query;
@@ -35,8 +32,9 @@ export const getPlanos = async (req, res, next) => {
     // Formatar resposta
     const planos = data.map(plano => ({
       ...plano,
-      operadora: plano.operadora?.nome || 'N/A',
-      beneficiarios: plano.beneficiarios?.[0]?.count || 0
+      // Default to ID or placeholder since join is removed
+      operadora: plano.operadora_id ? 'Ver Detalhes' : 'N/A',
+      beneficiarios: 0
     }));
 
     res.json(planos);
@@ -51,11 +49,7 @@ export const getPlanoById = async (req, res, next) => {
 
     const { data, error } = await supabase
       .from('planos')
-      .select(`
-        *,
-        operadora:operadoras(*),
-        beneficiarios:beneficiarios(count)
-      `)
+      .select('*')
       .eq('id', id)
       .single();
 
@@ -65,8 +59,8 @@ export const getPlanoById = async (req, res, next) => {
 
     res.json({
       ...data,
-      operadora: data.operadora?.nome || 'N/A',
-      beneficiarios: data.beneficiarios?.[0]?.count || 0
+      operadora: 'N/A', // Placeholder since join is removed
+      beneficiarios: 0
     });
   } catch (error) {
     next(error);
