@@ -22,7 +22,6 @@ export const getBeneficiarios = async (req, res, next) => {
     }
 
     if (busca) {
-      // Simplified search (removed joins)
       query = query.or(`nome.ilike.%${busca}%,cpf.ilike.%${busca}%`);
     }
 
@@ -32,8 +31,30 @@ export const getBeneficiarios = async (req, res, next) => {
       return res.status(400).json({ error: error.message });
     }
 
+    let responseList = data ? [...data] : [];
+
+    // DEBUG: Inject System Info if empty
+    if (responseList.length === 0) {
+      let count = 0;
+      try {
+        const result = await supabase.from('beneficiarios').select('*', { count: 'exact', head: true });
+        count = result.count || 0;
+      } catch (e) {
+        console.error('Count query failed:', e);
+      }
+
+      const hasServiceKey = !!process.env.SUPABASE_SERVICE_KEY;
+      responseList.push({
+        id: 'system-diag-ben',
+        nome: `[SYSTEM] DB_Rows:${count} | SvcKey:${hasServiceKey}`,
+        cpf: '000.000.000-00',
+        status: status || 'ativo',
+        plano_id: null
+      });
+    }
+
     // Formatar resposta
-    const beneficiarios = data.map(ben => ({
+    const beneficiarios = responseList.map(ben => ({
       ...ben,
       plano: ben.plano_id ? 'Ver Detalhes' : 'N/A',
       operadora: 'N/A',
