@@ -17,10 +17,9 @@ import {
   AlertCircle,
   X,
   Upload,
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
   Loader2,
+  XCircle,
+  Trash2,
 } from "lucide-react";
 import {
   Select,
@@ -180,6 +179,24 @@ const Financeiro = () => {
     mutationFn: (id: string) => financeiroAPI.confirmarPagamento(id),
     onSuccess: () => {
       uiToast({ title: "✅ Pagamento Confirmado!", description: "O pagamento foi marcado como 'Pago'." });
+      queryClient.invalidateQueries({ queryKey: ["pagamentos"] });
+    },
+    onError: (error) => uiToast({ title: "Erro", description: error.message, variant: "destructive" }),
+  });
+
+  const rejeitarPagamentoMutation = useMutation({
+    mutationFn: (id: string) => financeiroAPI.rejeitarPagamento(id),
+    onSuccess: () => {
+      uiToast({ title: "❌ Comprovante Rejeitado", description: "O status voltou para pendente e o arquivo foi removido." });
+      queryClient.invalidateQueries({ queryKey: ["pagamentos"] });
+    },
+    onError: (error) => uiToast({ title: "Erro", description: error.message, variant: "destructive" }),
+  });
+
+  const excluirPagamentoMutation = useMutation({
+    mutationFn: (id: string) => financeiroAPI.delete(id),
+    onSuccess: () => {
+      uiToast({ title: "🗑️ Pagamento Excluído", description: "O registro foi removido do sistema." });
       queryClient.invalidateQueries({ queryKey: ["pagamentos"] });
     },
     onError: (error) => uiToast({ title: "Erro", description: error.message, variant: "destructive" }),
@@ -561,15 +578,49 @@ const Financeiro = () => {
                                       </Button>
                                     </>
                                   ) : (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-9 gap-2"
-                                      onClick={() => handleVerDocumento(pag.boleto_anexado || pag.boleto_url)}
-                                    >
-                                      <Eye className="h-4 w-4" />
-                                      <span className="hidden sm:inline">Ver Boleto</span>
-                                    </Button>
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-9 gap-2"
+                                        onClick={() => handleVerDocumento(pag.boleto_anexado || pag.boleto_url)}
+                                      >
+                                        <Eye className="h-4 w-4" />
+                                        <span className="hidden sm:inline">Ver Comprovante</span>
+                                      </Button>
+
+                                      {user?.papel !== 'Vendedor' && pag.status === 'comprovante_anexado' && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-9 w-9 text-destructive hover:text-white hover:bg-destructive"
+                                          title="Rejeitar Comprovante"
+                                          onClick={() => {
+                                            if (confirm("Deseja realmente rejeitar este comprovante?")) {
+                                              rejeitarPagamentoMutation.mutate(pag.id);
+                                            }
+                                          }}
+                                        >
+                                          <XCircle className="h-4 w-4" />
+                                        </Button>
+                                      )}
+
+                                      {user?.papel !== 'Vendedor' && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-9 w-9 text-muted-foreground hover:text-white hover:bg-destructive"
+                                          title="Excluir Pagamento"
+                                          onClick={() => {
+                                            if (confirm("Deseja realmente excluir este pagamento? Esta ação não pode ser desfeita.")) {
+                                              excluirPagamentoMutation.mutate(pag.id);
+                                            }
+                                          }}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
                               </td>

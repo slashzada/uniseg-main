@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Users, User, TrendingDown, UserCheck, Percent, Loader2, MoreVertical, Edit, Trash2, Paperclip, FileText, X, Upload, CheckCircle2, Eye } from "lucide-react";
+import { Plus, Search, Users, User, TrendingDown, UserCheck, Percent, Loader2, MoreVertical, Edit, Trash2, Paperclip, FileText, X, Upload, CheckCircle2, Eye, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AddBeneficiarioDialog } from "@/components/dialogs/AddBeneficiarioDialog";
 import { EditBeneficiarioDialog } from "@/components/dialogs/EditBeneficiarioDialog";
@@ -203,6 +203,26 @@ const Beneficiarios = () => {
     onError: (error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
   });
 
+  const rejeitarPagamentoMutation = useMutation({
+    mutationFn: (id: string) => financeiroAPI.rejeitarPagamento(id),
+    onSuccess: () => {
+      toast({ title: "❌ Comprovante Rejeitado", description: "O status voltou para pendente e o arquivo foi removido." });
+      queryClient.invalidateQueries({ queryKey: ["pagamentos"] });
+      queryClient.invalidateQueries({ queryKey: ["beneficiarios"] });
+    },
+    onError: (error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
+  });
+
+  const excluirPagamentoMutation = useMutation({
+    mutationFn: (id: string) => financeiroAPI.delete(id),
+    onSuccess: () => {
+      toast({ title: "🗑️ Pagamento Excluído", description: "O registro foi removido do sistema." });
+      queryClient.invalidateQueries({ queryKey: ["pagamentos"] });
+      queryClient.invalidateQueries({ queryKey: ["beneficiarios"] });
+    },
+    onError: (error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
+  });
+
   const handleAnexarBoleto = async () => {
     if (!modalAnexar || !arquivoSelecionado) return;
 
@@ -392,18 +412,54 @@ const Beneficiarios = () => {
                               <div className="flex items-center gap-2">
                                 {targetPayment.status === "comprovante_anexado" && (
                                   <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-9 w-9 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleVerDocumento(targetPayment.boleto_anexado || targetPayment.boleto_url);
-                                      }}
-                                      title="Ver Comprovante"
-                                    >
-                                      <Eye className="h-4 w-4" />
-                                    </Button>
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 gap-1.5"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleVerDocumento(targetPayment.boleto_anexado || targetPayment.boleto_url);
+                                        }}
+                                      >
+                                        <Eye className="h-3.5 w-3.5" />
+                                        <span className="hidden sm:inline">Ver Comprovante</span>
+                                      </Button>
+
+                                      {user?.papel !== 'Vendedor' && targetPayment.status === 'comprovante_anexado' && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-8 w-8 text-destructive hover:text-white hover:bg-destructive"
+                                          title="Rejeitar Comprovante"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (confirm("Deseja realmente rejeitar este comprovante?")) {
+                                              rejeitarPagamentoMutation.mutate(targetPayment.id);
+                                            }
+                                          }}
+                                        >
+                                          <XCircle className="h-4 w-4" />
+                                        </Button>
+                                      )}
+
+                                      {user?.papel !== 'Vendedor' && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-8 w-8 text-muted-foreground hover:text-white hover:bg-destructive"
+                                          title="Excluir Pagamento"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (confirm("Deseja realmente excluir este pagamento? Esta ação não pode ser desfeita.")) {
+                                              excluirPagamentoMutation.mutate(targetPayment.id);
+                                            }
+                                          }}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                    </div>
                                   </motion.div>
                                 )}
                                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>

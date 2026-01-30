@@ -229,6 +229,56 @@ export const confirmarPagamento = async (req, res, next) => {
   }
 };
 
+export const rejeitarPagamento = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Optional: Check permissions
+    if (req.user.papel === 'Vendedor') {
+      return res.status(403).json({ error: 'Apenas Financeiro/Admin pode rejeitar comprovantes.' });
+    }
+
+    // Get current payment to check expiration date
+    const { data: pag, error: getError } = await supabase
+      .from('pagamentos')
+      .select('vencimento')
+      .eq('id', id)
+      .single();
+
+    if (getError || !pag) {
+      return res.status(404).json({ error: 'Pagamento not found' });
+    }
+
+    // Determine new status based on due date
+    const vencimentoDate = new Date(pag.vencimento);
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    vencimentoDate.setHours(0, 0, 0, 0);
+
+    const newStatus = vencimentoDate < hoje ? 'vencido' : 'pendente';
+
+    const { data, error } = await supabase
+      .from('pagamentos')
+      .update({
+        status: newStatus,
+        boleto_anexado: null,
+        boleto_url: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.json(data);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const deletePagamento = async (req, res, next) => {
   try {
     const { id } = req.params;
