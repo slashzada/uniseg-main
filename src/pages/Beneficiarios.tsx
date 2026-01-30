@@ -156,8 +156,13 @@ const Beneficiarios = () => {
       return;
     }
 
-    // Always try to open the URL directly
-    window.open(url, '_blank');
+    // If it's a full URL, open it. If it's just a filename, prefix with Supabase Storage URL
+    if (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('data:')) {
+      window.open(url, '_blank');
+    } else {
+      const storageUrl = `https://wqlpgjiravcvhecftoem.supabase.co/storage/v1/object/public/boletos/${url}`;
+      window.open(storageUrl, '_blank');
+    }
   };
 
   // ... (deleteMutation, handleEdit, handleDelete, confirmDelete remain same) ...
