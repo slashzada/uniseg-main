@@ -35,6 +35,7 @@ interface Beneficiario {
   valorPlano: number;
   plano_id: string;
   operadora_id: string;
+  vigencia?: string;
 }
 
 interface EditBeneficiarioDialogProps {
@@ -54,7 +55,7 @@ export const EditBeneficiarioDialog = ({
   const { toast } = useToast();
   const { data: operadoras, isLoading: loadingOperadoras } = useOperadoras();
   const { data: vendedores, isLoading: loadingVendedores } = useVendedores();
-  
+
   const [formData, setFormData] = useState({
     nome: "",
     cpf: "",
@@ -62,6 +63,7 @@ export const EditBeneficiarioDialog = ({
     operadora_id: "",
     vendedor_id: "",
     status: "",
+    vigencia: "",
   });
 
   // Fetch plans based on selected operadora
@@ -76,6 +78,7 @@ export const EditBeneficiarioDialog = ({
         operadora_id: beneficiario.operadora_id,
         vendedor_id: beneficiario.vendedorId,
         status: beneficiario.status,
+        vigencia: beneficiario.vigencia || "",
       });
     }
   }, [beneficiario]);
@@ -102,7 +105,7 @@ export const EditBeneficiarioDialog = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.nome || !formData.cpf || !formData.plano_id || !formData.operadora_id || !formData.vendedor_id || !formData.status) {
       toast({
         title: "Erro",
@@ -118,6 +121,7 @@ export const EditBeneficiarioDialog = ({
       plano_id: formData.plano_id,
       vendedor_id: formData.vendedor_id,
       status: formData.status,
+      vigencia: formData.vigencia,
     });
   };
 
@@ -253,6 +257,19 @@ export const EditBeneficiarioDialog = ({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="vigencia">Vigência</Label>
+            <Input
+              id="vigencia"
+              type="date"
+              value={formData.vigencia}
+              onChange={(e) =>
+                setFormData({ ...formData, vigencia: e.target.value })
+              }
+              disabled={loading}
+            />
           </div>
 
           <div className="flex gap-3 justify-end pt-4">

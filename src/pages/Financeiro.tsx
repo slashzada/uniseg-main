@@ -147,16 +147,12 @@ const Financeiro = () => {
     }),
     refetchInterval: 30000, // Refetch every 30 seconds
     select: (data) => data.map(pag => {
-      const relatedBeneficiario = beneficiariosList?.find(b => b.id === pag.beneficiario_id);
-
-      const relatedPlanoId = relatedBeneficiario?.plano_id;
-      const relatedPlano = planos?.find(p => p.id === relatedPlanoId);
-
+      // Trust the backend for consolidated fields
       return {
         ...pag,
         beneficiario_id: pag.beneficiario_id,
-        beneficiario: relatedBeneficiario?.nome || pag.beneficiario || "Beneficiário Desconhecido",
-        plano: relatedPlano?.nome || pag.plano || "Plano Desconhecido",
+        beneficiario: pag.beneficiario || "Beneficiário Desconhecido",
+        plano: pag.plano || "Plano Desconhecido",
         vencimento: pag.vencimento ? format(new Date(pag.vencimento), "dd/MM/yyyy", { locale: ptBR }) : "Data Inválida",
       } as Pagamento;
     }),

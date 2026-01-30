@@ -10,7 +10,20 @@ export const getBeneficiarios = async (req, res, next) => {
 
     let query = supabase
       .from('beneficiarios')
-      .select('*')
+      .select(`
+        *,
+        planos (
+          nome,
+          valor,
+          operadoras (
+            nome
+          )
+        ),
+        vendedores (
+          nome,
+          comissao
+        )
+      `)
       .order('created_at', { ascending: false });
 
     if (status) {
@@ -24,12 +37,8 @@ export const getBeneficiarios = async (req, res, next) => {
       }
       query = query.eq('vendedor_id', req.user.vendedor_id);
     } else if (vendedor_id) {
-      // Only allow filtering by specific vendeur if Admin or if looking for that specific one (logic above handles forced filter)
       query = query.eq('vendedor_id', vendedor_id);
     }
-
-    // Debug
-    // console.log('User Role:', req.user?.papel, 'Vendedor ID:', req.user?.vendedor_id);
 
     if (busca) {
       query = query.or(`nome.ilike.%${busca}%,cpf.ilike.%${busca}%`);
@@ -41,17 +50,15 @@ export const getBeneficiarios = async (req, res, next) => {
       return res.status(400).json({ error: error.message });
     }
 
-    // List matches database results exactly
-    const responseList = data ? [...data] : [];
-
-    // Formatar resposta
-    const beneficiarios = responseList.map(ben => ({
+    // Formatar resposta consolidada
+    const beneficiarios = (data || []).map(ben => ({
       ...ben,
-      plano: ben.plano_id ? 'Ver Detalhes' : 'N/A',
-      operadora: 'N/A',
-      valorPlano: 0,
-      vendedor: ben.vendedor_id ? 'Ver Detalhes' : 'N/A',
-      comissao: 0
+      plano: ben.planos?.nome || 'N/A',
+      operadora: ben.planos?.operadoras?.nome || 'N/A',
+      operadora_id: ben.planos?.operadora_id || '',
+      valorPlano: ben.planos?.valor || 0,
+      vendedor: ben.vendedores?.nome || 'N/A',
+      comissao: ben.vendedores?.comissao || 0
     }));
 
     res.json(beneficiarios);

@@ -10,7 +10,17 @@ export const getOperadoras = async (req, res, next) => {
 
     let query = supabase
       .from('operadoras')
-      .select('*')
+      .select(`
+        *,
+        planos (
+          count
+        ),
+        beneficiarios:planos (
+          beneficiarios (
+            count
+          )
+        )
+      `)
       .order('nome', { ascending: true });
 
     if (status) {
@@ -20,49 +30,20 @@ export const getOperadoras = async (req, res, next) => {
     const { data, error } = await query;
 
     if (error) {
-      console.error('[getOperadoras] Supabase error:', error);
       return res.status(400).json({ error: error.message });
     }
 
-    // Prepare response list safely to avoid mutating 'data' or crashing on null
-    let responseList = data ? [...data] : [];
+    // Formatar resposta consolidada
+    const operadoras = (data || []).map(op => {
+      // Sum beneficiaries across all plans of this operator
+      const totalBeneficiarios = op.beneficiarios?.reduce((acc, p) => acc + (p.beneficiarios?.[0]?.count || 0), 0) || 0;
 
-    // DEBUG: If empty, try a simple query to check if it's a join issue or RLS
-    if (responseList.length === 0) {
-      console.log('[getOperadoras] Main query returned 0 rows. Testing simple SELECT *...');
-
-      let count = 0;
-      try {
-        const result = await supabase.from('operadoras').select('*', { count: 'exact', head: true });
-        count = result.count || 0;
-      } catch (e) {
-        console.error('Count query failed:', e);
-      }
-
-      console.log(`[getOperadoras] Simple SELECT count: ${count}`);
-
-      // INJECT DEBUG INFO INTO RESPONSE IF EMPTY
-      const hasServiceKey = !!process.env.SUPABASE_SERVICE_KEY;
-
-      responseList.push({
-        id: 'system-diag',
-        nome: `[SYSTEM] DB_Rows:${count} | SvcKey:${hasServiceKey}`,
-        // Use the requested status so it passes frontend filters
-        status: status || 'ativa',
-        cor: 'from-gray-500 to-gray-700',
-        planos: 0,
-        beneficiarios: 0
-      });
-    } else {
-      console.log(`[getOperadoras] Successfully fetched ${responseList.length} operators`);
-    }
-
-    // Formatar resposta
-    const operadoras = responseList.map(op => ({
-      ...op,
-      planos: op.planos?.[0]?.count || 0,
-      beneficiarios: op.beneficiarios?.[0]?.count || 0
-    }));
+      return {
+        ...op,
+        planos: op.planos?.[0]?.count || 0,
+        beneficiarios: totalBeneficiarios
+      };
+    });
 
     res.json(operadoras);
   } catch (error) {

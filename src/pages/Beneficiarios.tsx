@@ -35,6 +35,7 @@ interface BackendBeneficiarioResponse {
   desde: string;
   plano: string; // Plan name (flattened by backend controller)
   operadora: string; // Operadora name (flattened by backend controller)
+  operadora_id: string; // Operadora ID (flattened by backend controller)
   valorPlano: number;
   vendedor: string; // Vendedor name (flattened by backend controller)
   comissao: number;
@@ -122,25 +123,22 @@ const Beneficiarios = () => {
     }),
     refetchInterval: 30000, // Refetch every 30 seconds
     select: (data) => data.map(ben => {
-      const relatedPlano = planos?.find(p => p.id === ben.plano_id);
-      const relatedVendedor = vendedores?.find(v => v.id === ben.vendedor_id);
-
-      // Improved Fallback Logic
-      const planoName = relatedPlano?.nome || (ben.plano !== "Ver Detalhes" ? ben.plano : "Plano não encontrado");
-
+      // Trust the backend for flattened names
       return {
         ...ben,
         plano_id: ben.plano_id,
-        operadora_id: relatedPlano?.operadora_id || '',
+        operadora_id: ben.operadora_id,
         vendedorId: ben.vendedor_id,
 
-        plano: planoName,
-        operadora: relatedPlano?.operadora || ben.operadora || "N/A",
-        vendedor: relatedVendedor?.nome || ben.vendedor || "Vendedor Desconhecido",
+        // Names come directly from the API formatter now
+        plano: ben.plano,
+        operadora: ben.operadora,
+        vendedor: ben.vendedor,
 
-        valorPlano: relatedPlano?.valor || 0,
-        comissao: relatedVendedor?.comissao || 0,
+        valorPlano: ben.valorPlano,
+        comissao: ben.comissao,
 
+        // Robust date formatting
         desde: ben.desde ? format(new Date(ben.desde), "dd/MM/yyyy", { locale: ptBR }) : "Data Inválida",
         vigencia: ben.vigencia ? format(new Date(ben.vigencia), "dd/MM/yyyy", { locale: ptBR }) : "N/D",
       };

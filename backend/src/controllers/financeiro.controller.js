@@ -7,13 +7,20 @@ export const getPagamentos = async (req, res, next) => {
 
     let query = supabase
       .from('pagamentos')
-      .select('*')
+      .select(`
+        *,
+        beneficiarios (
+          nome,
+          planos (
+            nome
+          )
+        )
+      `)
       .order('vencimento', { ascending: true });
 
     // RBAC: Filter by vendedor if user is Vendedor
     if (req.user && req.user.papel === 'Vendedor') {
       if (!req.user.vendedor_id) {
-        // Security: Vendedor must be linked to a profile, otherwise see nothing
         return res.json([]);
       }
 
@@ -27,7 +34,6 @@ export const getPagamentos = async (req, res, next) => {
       if (beneficiarioIds.length > 0) {
         query = query.in('beneficiario_id', beneficiarioIds);
       } else {
-        // No beneficiarios for this vendedor, return empty
         return res.json([]);
       }
     }
@@ -37,8 +43,9 @@ export const getPagamentos = async (req, res, next) => {
     }
 
     if (busca) {
-      // Search logic simplified
-      query = query.ilike('boleto_anexado', `%${busca}%`); // No name column in pagamentos
+      // With joins, we might need a more complex search if we want to search by beneficiary name
+      // For now, keeping it simple as per original logic or slightly improved
+      query = query.ilike('boleto_anexado', `%${busca}%`);
     }
 
     const { data, error } = await query;
@@ -47,11 +54,11 @@ export const getPagamentos = async (req, res, next) => {
       return res.status(400).json({ error: error.message });
     }
 
-    // Formatar resposta
-    const pagamentos = data.map(pag => ({
+    // Formatar resposta consolidada
+    const pagamentos = (data || []).map(pag => ({
       ...pag,
-      beneficiario: pag.beneficiario_id ? 'Ver Detalhes' : 'N/A',
-      plano: 'N/A'
+      beneficiario: pag.beneficiarios?.nome || 'N/A',
+      plano: pag.beneficiarios?.planos?.nome || 'N/A'
     }));
 
     res.json(pagamentos);
