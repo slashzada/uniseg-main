@@ -197,10 +197,10 @@ const Financeiro = () => {
   const pagamentosData = pagamentos || [];
 
   const totais = {
-    aReceber: pagamentosData.reduce((acc, p) => acc + p.valor, 0),
-    recebido: pagamentosData.filter(p => p.status === "pago").reduce((acc, p) => acc + p.valor, 0),
-    pendente: pagamentosData.filter(p => p.status === "pendente").reduce((acc, p) => acc + p.valor, 0),
-    vencido: pagamentosData.filter(p => p.status === "vencido").reduce((acc, p) => acc + p.valor, 0),
+    aReceber: pagamentosData.filter(p => p.status !== "pago").reduce((acc, p) => acc + (Number(p.valor) || 0), 0),
+    recebido: pagamentosData.filter(p => p.status === "pago").reduce((acc, p) => acc + (Number(p.valor) || 0), 0),
+    pendente: pagamentosData.filter(p => p.status === "pendente" || p.status === "vencido").reduce((acc, p) => acc + (Number(p.valor) || 0), 0),
+    emAnalise: pagamentosData.filter(p => p.status === "comprovante_anexado").reduce((acc, p) => acc + (Number(p.valor) || 0), 0),
   };
 
   const handleExport = () => {
@@ -275,8 +275,8 @@ const Financeiro = () => {
           {[
             { label: "A Receber (Total)", value: totais.aReceber, icon: DollarSign, color: "primary" },
             { label: "Recebido", value: totais.recebido, icon: TrendingUp, color: "success" },
-            { label: "Pendente", value: totais.pendente, icon: Clock, color: "warning" },
-            { label: "Vencido", value: totais.vencido, icon: TrendingDown, color: "destructive" },
+            { label: "Pendente/Vencido", value: totais.pendente, icon: Clock, color: "warning" },
+            { label: "Em Análise", value: totais.emAnalise, icon: Search, color: "primary" },
           ].map((stat, index) => (
             <motion.div
               key={stat.label}

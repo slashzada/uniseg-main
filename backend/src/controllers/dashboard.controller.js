@@ -48,26 +48,25 @@ export const getStats = async (req, res, next) => {
 
     const { count: totalBeneficiarios } = await queryBenTotal;
 
-    // Receita mensal (soma dos pagamentos pagos do mês atual)
-    const inicioMes = new Date();
-    inicioMes.setDate(1);
+    // Receita mensal (soma dos pagamentos confirmados no mês atual)
+    const agora = new Date();
+    const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
     inicioMes.setHours(0, 0, 0, 0);
 
     let queryPagMes = supabase
       .from('pagamentos')
       .select('valor')
       .eq('status', 'pago')
-      .gte('created_at', inicioMes.toISOString());
+      .gte('confirmado_em', inicioMes.toISOString());
 
     if (beneficiarioIds) {
       queryPagMes = queryPagMes.in('beneficiario_id', beneficiarioIds);
     }
 
     const { data: pagamentosMes } = await queryPagMes;
-
     const receitaMensal = pagamentosMes?.reduce((acc, p) => acc + (p.valor || 0), 0) || 0;
 
-    // Taxa de adimplência
+    // Taxa de adimplência (Pagos vs Total de Pagamentos GERADOS até agora)
     let queryTodosPag = supabase
       .from('pagamentos')
       .select('status');
@@ -82,7 +81,7 @@ export const getStats = async (req, res, next) => {
     const pagos = todosPagamentos?.filter(p => p.status === 'pago').length || 0;
     const taxaAdimplencia = totalPagamentos > 0 ? (pagos / totalPagamentos) * 100 : 0;
 
-    // Pagamentos vencidos
+    // Pagamentos vencidos (Apenas status 'vencido')
     let queryPagVenc = supabase
       .from('pagamentos')
       .select('valor')
@@ -126,22 +125,21 @@ export const getRevenueChart = async (req, res, next) => {
     // Últimos 6 meses
     const meses = [];
     const receitas = [];
+    const agora = new Date();
 
     for (let i = 5; i >= 0; i--) {
-      const data = new Date();
-      data.setMonth(data.getMonth() - i);
-      data.setDate(1);
-      data.setHours(0, 0, 0, 0);
+      const dataInicio = new Date(agora.getFullYear(), agora.getMonth() - i, 1);
+      dataInicio.setHours(0, 0, 0, 0);
 
-      const proximoMes = new Date(data);
-      proximoMes.setMonth(proximoMes.getMonth() + 1);
+      const dataFim = new Date(agora.getFullYear(), agora.getMonth() - i + 1, 1);
+      dataFim.setHours(0, 0, 0, 0);
 
       let queryPag = supabase
         .from('pagamentos')
         .select('valor')
         .eq('status', 'pago')
-        .gte('created_at', data.toISOString())
-        .lt('created_at', proximoMes.toISOString());
+        .gte('confirmado_em', dataInicio.toISOString())
+        .lt('confirmado_em', dataFim.toISOString());
 
       if (beneficiarioIds) {
         queryPag = queryPag.in('beneficiario_id', beneficiarioIds);
@@ -151,7 +149,7 @@ export const getRevenueChart = async (req, res, next) => {
 
       const receita = pagamentos?.reduce((acc, p) => acc + (p.valor || 0), 0) || 0;
 
-      meses.push(data.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }));
+      meses.push(dataInicio.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }));
       receitas.push(receita);
     }
 

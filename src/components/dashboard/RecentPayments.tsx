@@ -14,7 +14,7 @@ interface Payment {
   plano: string;
   valor: number;
   vencimento: string;
-  status: "pago" | "pendente" | "vencido";
+  status: "pago" | "pendente" | "vencido" | "comprovante_anexado";
 }
 
 const statusConfig = {
@@ -30,11 +30,15 @@ const statusConfig = {
     label: "Vencido",
     className: "bg-destructive/15 text-destructive border-destructive/30",
   },
+  comprovante_anexado: {
+    label: "Em Análise",
+    className: "bg-primary/15 text-primary border-primary/30",
+  },
 };
 
 export function RecentPayments() {
   const navigate = useNavigate();
-  
+
   const { data: payments, isLoading } = useQuery<Payment[]>({
     queryKey: ["recentPayments"],
     queryFn: () => financeiroAPI.getAll(),
@@ -51,7 +55,7 @@ export function RecentPayments() {
       <Card className="border-0 shadow-xl shadow-foreground/5 bg-card/80 backdrop-blur-sm h-full flex flex-col overflow-hidden">
         {/* Decorative gradient */}
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-success via-warning to-destructive" />
-        
+
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div>
