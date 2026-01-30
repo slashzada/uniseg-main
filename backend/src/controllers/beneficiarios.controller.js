@@ -18,7 +18,10 @@ export const getBeneficiarios = async (req, res, next) => {
     }
 
     // RBAC: Force filter if user is Vendedor
-    if (req.user && req.user.papel === 'Vendedor' && req.user.vendedor_id) {
+    if (req.user && req.user.papel === 'Vendedor') {
+      if (!req.user.vendedor_id) {
+        return res.json([]); // Security: Vendedor must be linked, otherwise see nothing
+      }
       query = query.eq('vendedor_id', req.user.vendedor_id);
     } else if (vendedor_id) {
       // Only allow filtering by specific vendeur if Admin or if looking for that specific one (logic above handles forced filter)

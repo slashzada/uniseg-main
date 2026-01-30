@@ -17,9 +17,10 @@ ALTER TABLE pagamentos
 ADD COLUMN IF NOT EXISTS confirmado_em TIMESTAMP;
 
 -- 4. Update status check constraint to include new status
--- Note: This assumes the status column uses a check constraint
--- If using enum type, you may need to alter the type instead
--- ALTER TYPE status_pagamento ADD VALUE IF NOT EXISTS 'comprovante_anexado';
+-- This removes the old constraint and adds the new one with 'comprovante_anexado'
+ALTER TABLE pagamentos DROP CONSTRAINT IF EXISTS pagamentos_status_check;
+ALTER TABLE pagamentos ADD CONSTRAINT pagamentos_status_check 
+CHECK (status IN ('pendente', 'vencido', 'comprovante_anexado', 'pago'));
 
 -- 5. Update RLS Policies to be safer (Optional but recommended)
 -- For now, relying on Controller logic as requested.

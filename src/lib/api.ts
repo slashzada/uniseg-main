@@ -1,7 +1,5 @@
 // Configuração da API
-// Hardcoded for debugging to ensure connection
-const API_BASE_URL = 'https://uniseg-main.onrender.com/api';
-// console.log('[API] Using Base URL:', API_BASE_URL);
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://uniseg-main.onrender.com/api';
 
 // Helper to clean undefined/null params
 const cleanParams = (params: any) => {

@@ -106,10 +106,10 @@ const Beneficiarios = () => {
     queryFn: () => planosAPI.getAll({}),
   });
 
-  // 1b. Fetch Pending Payments to match with Beneficiaries for the "Anexar" button
-  const { data: pendingPayments } = useQuery<any[]>({
-    queryKey: ["pagamentos", "pendente_short"],
-    queryFn: () => financeiroAPI.getAll({ status: "pendente" }),
+  // 1b. Fetch Payments to match with Beneficiaries for the "Anexar Boleto" button
+  const { data: allPayments } = useQuery<any[]>({
+    queryKey: ["pagamentos", "all_short"],
+    queryFn: () => financeiroAPI.getAll({}), // Get all to catch pendente/vencido/etc
   });
 
   // 2. Fetch Beneficiarios
@@ -318,8 +318,8 @@ const Beneficiarios = () => {
                   <AnimatePresence mode="popLayout">
                     {beneficiariosData.map((ben) => {
                       const comissaoValor = ben.valorPlano ? (ben.valorPlano * ben.comissao / 100) : 0;
-                      // Check for pending payment
-                      const pendingPayment = pendingPayments?.find(p => p.beneficiario_id === ben.id);
+                      // Check for payment that needs proof or can be edited
+                      const targetPayment = allPayments?.find(p => p.beneficiario_id === ben.id && (p.status === "pendente" || p.status === "vencido" || p.status === "comprovante_anexado"));
 
                       return (
                         <motion.div key={ben.id} variants={itemVariants} layout initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="group flex items-center justify-between px-6 py-5 hover:bg-muted/30 transition-all cursor-pointer">
@@ -335,27 +335,35 @@ const Beneficiarios = () => {
                             <p className="text-sm text-muted-foreground">{ben.operadora}</p>
                             <p className="text-xs text-muted-foreground mt-1">Vigência: {ben.vigencia}</p>
                           </div>
-                          <div className="text-right hidden sm:block">
-                            <p className="font-medium">{ben.plano}</p>
-                            <p className="text-sm text-muted-foreground">{ben.operadora}</p>
-                          </div>
 
                           {/* Actions Column */}
-                          <div className="flex items-center gap-3">
-                            {/* Attach Button (New) */}
-                            {pendingPayment && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 gap-1.5 border-dashed border-success/50 text-success hover:bg-success/10 hover:border-success"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setModalAnexar({ id: pendingPayment.id, nome: ben.nome });
-                                }}
-                              >
-                                <Paperclip className="h-3.5 w-3.5" />
-                                <span className="text-xs">Anexar</span>
-                              </Button>
+                          <div className="flex items-center gap-3 text-right">
+                            {/* Attach/Edit Button */}
+                            {targetPayment && (
+                              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                <Button
+                                  variant={targetPayment.status === "comprovante_anexado" ? "outline" : "default"}
+                                  size="sm"
+                                  className={cn(
+                                    "h-9 gap-2 shadow-lg",
+                                    targetPayment.status === "comprovante_anexado"
+                                      ? "border-primary text-primary hover:bg-primary/5 shadow-primary/10"
+                                      : "bg-success hover:bg-success/90 text-white shadow-success/25"
+                                  )}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setModalAnexar({ id: targetPayment.id, nome: ben.nome });
+                                  }}
+                                >
+                                  <Paperclip className="h-4 w-4" />
+                                  <span className="hidden sm:inline text-xs font-semibold">
+                                    {targetPayment.status === "comprovante_anexado" ? "Editar Comprovante" : "Anexar Boleto"}
+                                  </span>
+                                  <span className="sm:hidden text-xs font-semibold">
+                                    {targetPayment.status === "comprovante_anexado" ? "Editar" : "Anexar"}
+                                  </span>
+                                </Button>
+                              </motion.div>
                             )}
 
                             <span className="text-sm text-muted-foreground hidden md:block">Desde {ben.desde}</span>

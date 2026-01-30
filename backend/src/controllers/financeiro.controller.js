@@ -11,7 +11,12 @@ export const getPagamentos = async (req, res, next) => {
       .order('vencimento', { ascending: true });
 
     // RBAC: Filter by vendedor if user is Vendedor
-    if (req.user && req.user.papel === 'Vendedor' && req.user.vendedor_id) {
+    if (req.user && req.user.papel === 'Vendedor') {
+      if (!req.user.vendedor_id) {
+        // Security: Vendedor must be linked to a profile, otherwise see nothing
+        return res.json([]);
+      }
+
       // Get beneficiarios for this vendedor first
       const { data: beneficiarios } = await supabase
         .from('beneficiarios')

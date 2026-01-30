@@ -13,11 +13,16 @@ import { body } from 'express-validator';
 
 const router = express.Router();
 
-// All financial routes require authentication and Admin/Financeiro role
+// Financeiro routes
 router.use(authenticate);
+
+// Publicly readable/uploadable for authenticated users (Controller handles vendor filtering)
+router.get('/', getPagamentos);
+router.post('/:id/boleto', anexarBoleto);
+
+// Admin/Financeiro only routes
 router.use(requireNotVendedor);
 
-router.get('/', getPagamentos);
 router.get('/:id', getPagamentoById);
 router.post('/',
   [
@@ -34,8 +39,7 @@ router.put('/:id',
   ],
   updatePagamento
 );
-router.post('/:id/boleto', anexarBoleto);
-router.post('/:id/confirmar', confirmarPagamento); // Only Admin/Financeiro can confirm
+router.post('/:id/confirmar', confirmarPagamento);
 router.delete('/:id', deletePagamento);
 
 export default router;

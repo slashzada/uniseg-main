@@ -447,22 +447,35 @@ const Financeiro = () => {
                               <td className="px-6 py-5">
                                 <div className="flex justify-end gap-2">
                                   {pag.status === "comprovante_anexado" && user?.papel !== "Vendedor" ? (
-                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                      <Button
-                                        variant="default"
-                                        size="sm"
-                                        className="h-9 gap-2 bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/25"
-                                        onClick={() => confirmarPagamentoMutation.mutate(pag.id)}
-                                        disabled={confirmarPagamentoMutation.isPending}
-                                      >
-                                        {confirmarPagamentoMutation.isPending ? (
-                                          <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                          <CheckCircle2 className="h-4 w-4" />
-                                        )}
-                                        <span className="hidden sm:inline">Confirmar Pagamento</span>
-                                      </Button>
-                                    </motion.div>
+                                    <>
+                                      <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-9 gap-2 border-primary text-primary hover:bg-primary/5"
+                                          onClick={() => setModalAnexar(pag)}
+                                        >
+                                          <Paperclip className="h-4 w-4" />
+                                          <span className="hidden sm:inline">Editar</span>
+                                        </Button>
+                                      </motion.div>
+                                      <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                        <Button
+                                          variant="default"
+                                          size="sm"
+                                          className="h-9 gap-2 bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/25"
+                                          onClick={() => confirmarPagamentoMutation.mutate(pag.id)}
+                                          disabled={confirmarPagamentoMutation.isPending}
+                                        >
+                                          {confirmarPagamentoMutation.isPending ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                          ) : (
+                                            <CheckCircle2 className="h-4 w-4" />
+                                          )}
+                                          <span className="hidden sm:inline font-semibold">Confirmar Pagamento</span>
+                                        </Button>
+                                      </motion.div>
+                                    </>
                                   ) : pag.status !== "pago" ? (
                                     <>
                                       <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
