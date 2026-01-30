@@ -44,7 +44,6 @@ export const AddBeneficiarioDialog = ({
     cpf: "",
     plano_id: "",
     operadora_id: "",
-    operadora_id: "",
     vendedor_id: "",
     vigencia: "", // New Field
     valor: "", // This field is not strictly needed for the backend API but kept for form compatibility
@@ -74,7 +73,6 @@ export const AddBeneficiarioDialog = ({
         nome: "",
         cpf: "",
         plano_id: "",
-        operadora_id: "",
         operadora_id: "",
         vendedor_id: "",
         vigencia: "",
@@ -109,11 +107,9 @@ export const AddBeneficiarioDialog = ({
       nome: formData.nome,
       cpf: cleanDocument(formData.cpf), // Clean CPF before sending
       plano_id: formData.plano_id,
-      plano_id: formData.plano_id,
       vendedor_id: formData.vendedor_id,
       vigencia: formData.vigencia, // Send vigencia
-      // Note: valor_plano is not required by the backend controller, but if it were, 
-      // we would calculate it based on the selected plano or use the form value.
+      valor: formData.valor, // Send valor for initial payment creation
     });
   };
 
@@ -258,24 +254,23 @@ export const AddBeneficiarioDialog = ({
               disabled={loading}
             />
           </div>
-        </div>
 
-        <div className="flex gap-3 justify-end pt-4">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={loading}
-          >
-            Cancelar
-          </Button>
-          <Button type="submit" disabled={loading}>
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Cadastrar
-          </Button>
-        </div>
-      </motion.form>
-    </DialogContent>
-    </Dialog >
+          <div className="flex gap-3 justify-end pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={loading}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Cadastrar
+            </Button>
+          </div>
+        </motion.form>
+      </DialogContent>
+    </Dialog>
   );
 };
