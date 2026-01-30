@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { financeiroAPI } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Payment {
   id: string;
@@ -38,6 +39,7 @@ const statusConfig = {
 
 export function RecentPayments() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const { data: payments, isLoading } = useQuery<Payment[]>({
     queryKey: ["recentPayments"],
@@ -103,10 +105,37 @@ export function RecentPayments() {
                       variant="outline"
                       className={cn(
                         "text-[10px] font-semibold border",
-                        statusConfig[payment.status].className
+                        (() => {
+                          const status = payment.status;
+                          if (status === 'pago' || status === 'comprovante_anexado') return statusConfig[status].className;
+
+                          // Check for overdue (1 day grace period)
+                          const vencimento = new Date(payment.vencimento);
+                          const carencia = new Date();
+                          carencia.setDate(carencia.getDate() - 1);
+                          carencia.setHours(0, 0, 0, 0);
+                          vencimento.setHours(0, 0, 0, 0);
+
+                          if (vencimento < carencia) {
+                            return statusConfig.vencido.className;
+                          }
+                          return statusConfig.pendente.className;
+                        })()
                       )}
                     >
-                      {statusConfig[payment.status].label}
+                      {(() => {
+                        const status = payment.status;
+                        if (status === 'pago' || status === 'comprovante_anexado') return statusConfig[status].label;
+
+                        const vencimento = new Date(payment.vencimento);
+                        const carencia = new Date();
+                        carencia.setDate(carencia.getDate() - 1);
+                        carencia.setHours(0, 0, 0, 0);
+                        vencimento.setHours(0, 0, 0, 0);
+
+                        if (vencimento < carencia) return "Atrasado";
+                        return statusConfig.pendente.label;
+                      })()}
                     </Badge>
                   </div>
                 </motion.div>
@@ -114,16 +143,18 @@ export function RecentPayments() {
             </div>
           )}
         </CardContent>
-        <div className="p-4 border-t border-border/50 mt-auto">
-          <Button
-            variant="ghost"
-            className="w-full justify-between text-muted-foreground hover:text-primary group"
-            onClick={() => navigate("/financeiro")}
-          >
-            Ver todos os pagamentos
-            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-          </Button>
-        </div>
+        {user?.papel !== 'Vendedor' && (
+          <div className="p-4 border-t border-border/50 mt-auto">
+            <Button
+              variant="ghost"
+              className="w-full justify-between text-muted-foreground hover:text-primary group"
+              onClick={() => navigate("/financeiro")}
+            >
+              Ver todos os pagamentos
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+            </Button>
+          </div>
+        )}
       </Card>
     </motion.div>
   );
