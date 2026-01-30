@@ -15,6 +15,11 @@ interface DashboardStats {
   taxaAdimplencia: number;
   pagamentosVencidos: number;
   totalVencido: number;
+  trends: {
+    beneficiarios: { value: number; isPositive: boolean };
+    receita: { value: number; isPositive: boolean };
+    adimplencia: { value: number; isPositive: boolean };
+  };
 }
 
 const containerVariants = {
@@ -59,9 +64,6 @@ const Dashboard = () => {
 
   const formatPercent = (value: number) => `${value.toFixed(1)}%`;
 
-  // Mocking trend data as backend doesn't provide comparison data
-  const mockTrend = (isPositive: boolean) => ({ value: 8.2, isPositive });
-
   return (
     <AppLayout>
       <motion.div
@@ -104,7 +106,7 @@ const Dashboard = () => {
                   value={stats?.beneficiariosAtivos.toLocaleString("pt-BR") || "0"}
                   subtitle={`Total: ${stats?.totalBeneficiarios.toLocaleString("pt-BR") || "0"}`}
                   icon={Users}
-                  trend={mockTrend(true)}
+                  trend={stats?.trends?.beneficiarios}
                   variant="default"
                 />
               </motion.div>
@@ -114,7 +116,7 @@ const Dashboard = () => {
                   value={formatCurrency(stats?.receitaMensal || 0)}
                   subtitle="Soma dos pagamentos pagos no mês"
                   icon={DollarSign}
-                  trend={mockTrend(true)}
+                  trend={stats?.trends?.receita}
                   variant="success"
                 />
               </motion.div>
@@ -124,7 +126,7 @@ const Dashboard = () => {
                   value={formatPercent(stats?.taxaAdimplencia || 0)}
                   subtitle="Pagamentos pagos / Total"
                   icon={TrendingUp}
-                  trend={mockTrend(true)}
+                  trend={stats?.trends?.adimplencia}
                   variant="default"
                 />
               </motion.div>
