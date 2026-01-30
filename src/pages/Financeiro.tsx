@@ -49,26 +49,28 @@ import { exportToCSV } from "@/lib/export";
 // Update Interface to match likely Backend Response (Simplified)
 interface BackendPagamentoResponse {
   id: string;
-  beneficiario_id: string; // The ID we need to join
+  beneficiario_id: string;
   valor: number;
-  vencimento: string; // ISO Date
-  status: "pago" | "pendente" | "vencido";
+  vencimento: string;
+  status: "pago" | "pendente" | "vencido" | "comprovante_anexado";
   boleto_anexado?: string;
-  // Fallbacks if backend still sends flattened strings
+  boleto_url?: string;
+  comprovante_url?: string;
   beneficiario?: string;
   plano?: string;
 }
 
 interface Pagamento {
   id: string;
-  beneficiario: string; // Resolved Name
+  beneficiario: string;
   beneficiario_id: string;
-  plano: string; // Resolved Name
+  plano: string;
   valor: number;
-  vencimento: string; // Formatted Date
+  vencimento: string;
   status: "pago" | "pendente" | "vencido" | "comprovante_anexado";
   boleto_anexado?: string;
   boleto_url?: string;
+  comprovante_url?: string;
 }
 
 const statusConfig = {
@@ -103,7 +105,27 @@ const Financeiro = () => {
   const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast();
+  const { toast: uiToast } = useToast();
+
+  const handleVerDocumento = (url?: string) => {
+    if (!url) {
+      uiToast({
+        title: "Arquivo não disponível",
+        description: "O documento não foi encontrado ou ainda não foi processado.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('data:')) {
+      window.open(url, '_blank');
+    } else {
+      uiToast({
+        title: "Visualizando Arquivo",
+        description: `Abrindo arquivo: ${url}`,
+      });
+    }
+  };
 
   // 1. Fetch Dependencies
   const { data: planos } = useQuery<any[]>({
@@ -144,7 +166,7 @@ const Financeiro = () => {
     mutationFn: (data: { id: string, nome: string }) =>
       financeiroAPI.anexarBoleto(data.id, data.nome),
     onSuccess: () => {
-      toast({
+      uiToast({
         title: "✅ Boleto anexado com sucesso!",
         description: `Status atualizado para 'Em Análise'.`,
       });
@@ -154,17 +176,17 @@ const Financeiro = () => {
       setArquivoSelecionado(null);
     },
     onError: (error) => {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      uiToast({ title: "Erro", description: error.message, variant: "destructive" });
     },
   });
 
   const confirmarPagamentoMutation = useMutation({
     mutationFn: (id: string) => financeiroAPI.confirmarPagamento(id),
     onSuccess: () => {
-      toast({ title: "✅ Pagamento Confirmado!", description: "O pagamento foi marcado como 'Pago'." });
+      uiToast({ title: "✅ Pagamento Confirmado!", description: "O pagamento foi marcado como 'Pago'." });
       queryClient.invalidateQueries({ queryKey: ["pagamentos"] });
     },
-    onError: (error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
+    onError: (error) => uiToast({ title: "Erro", description: error.message, variant: "destructive" }),
   });
 
   const handleAnexarBoleto = () => {
@@ -205,7 +227,7 @@ const Financeiro = () => {
 
   const handleExport = () => {
     if (pagamentosData.length === 0) {
-      toast({
+      uiToast({
         title: "Atenção",
         description: "Não há dados para exportar.",
         variant: "warning",
@@ -225,7 +247,7 @@ const Financeiro = () => {
 
     exportToCSV(pagamentosData, headers, `relatorio_pagamentos_${new Date().toISOString().split('T')[0]}.csv`);
 
-    toast({
+    uiToast({
       title: "Relatório Exportado",
       description: `Exportação de ${pagamentosData.length} pagamentos concluída com sucesso.`,
     });
@@ -461,6 +483,17 @@ const Financeiro = () => {
                                       </motion.div>
                                       <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                                         <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-9 gap-2 border-blue-500 text-blue-500 hover:bg-blue-500/5"
+                                          onClick={() => handleVerDocumento(pag.boleto_url)}
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                          <span className="hidden sm:inline">Ver Comprovante</span>
+                                        </Button>
+                                      </motion.div>
+                                      <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                        <Button
                                           variant="default"
                                           size="sm"
                                           className="h-9 gap-2 bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/25"
@@ -496,7 +529,7 @@ const Financeiro = () => {
                                         title="Enviar lembrete"
                                         onClick={() => {
                                           // Mocked Email Send
-                                          toast({
+                                          uiToast({
                                             title: "Lembrete Enviado",
                                             description: `E-mail de lembrete enviado para ${pag.beneficiario}`,
                                           });
@@ -510,7 +543,7 @@ const Financeiro = () => {
                                       variant="outline"
                                       size="sm"
                                       className="h-9 gap-2"
-                                      title={pag.boleto_anexado}
+                                      onClick={() => handleVerDocumento(pag.boleto_anexado || pag.boleto_url)}
                                     >
                                       <Eye className="h-4 w-4" />
                                       <span className="hidden sm:inline">Ver Boleto</span>

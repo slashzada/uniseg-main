@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Users, User, TrendingDown, UserCheck, Percent, Loader2, MoreVertical, Edit, Trash2, Paperclip, FileText, X, Upload, CheckCircle2 } from "lucide-react";
+import { Plus, Search, Users, User, TrendingDown, UserCheck, Percent, Loader2, MoreVertical, Edit, Trash2, Paperclip, FileText, X, Upload, CheckCircle2, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AddBeneficiarioDialog } from "@/components/dialogs/AddBeneficiarioDialog";
 import { EditBeneficiarioDialog } from "@/components/dialogs/EditBeneficiarioDialog";
@@ -146,6 +146,26 @@ const Beneficiarios = () => {
       };
     }) as Beneficiario[],
   });
+
+  const handleVerDocumento = (url?: string) => {
+    if (!url) {
+      toast({
+        title: "Arquivo não disponível",
+        description: "O documento não foi encontrado ou ainda não foi processado.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('data:')) {
+      window.open(url, '_blank');
+    } else {
+      toast({
+        title: "Visualizando Arquivo",
+        description: `Abrindo arquivo: ${url}`,
+      });
+    }
+  };
 
   // ... (deleteMutation, handleEdit, handleDelete, confirmDelete remain same) ...
   const deleteMutation = useMutation({
@@ -340,30 +360,48 @@ const Beneficiarios = () => {
                           <div className="flex items-center gap-3 text-right">
                             {/* Attach/Edit Button */}
                             {targetPayment && (
-                              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                <Button
-                                  variant={targetPayment.status === "comprovante_anexado" ? "outline" : "default"}
-                                  size="sm"
-                                  className={cn(
-                                    "h-9 gap-2 shadow-lg",
-                                    targetPayment.status === "comprovante_anexado"
-                                      ? "border-primary text-primary hover:bg-primary/5 shadow-primary/10"
-                                      : "bg-success hover:bg-success/90 text-white shadow-success/25"
-                                  )}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setModalAnexar({ id: targetPayment.id, nome: ben.nome });
-                                  }}
-                                >
-                                  <Paperclip className="h-4 w-4" />
-                                  <span className="hidden sm:inline text-xs font-semibold">
-                                    {targetPayment.status === "comprovante_anexado" ? "Editar Comprovante" : "Anexar Boleto"}
-                                  </span>
-                                  <span className="sm:hidden text-xs font-semibold">
-                                    {targetPayment.status === "comprovante_anexado" ? "Editar" : "Anexar"}
-                                  </span>
-                                </Button>
-                              </motion.div>
+                              <div className="flex items-center gap-2">
+                                {targetPayment.status === "comprovante_anexado" && (
+                                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-9 w-9 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleVerDocumento(targetPayment.boleto_url);
+                                      }}
+                                      title="Ver Comprovante"
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                  </motion.div>
+                                )}
+                                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                  <Button
+                                    variant={targetPayment.status === "comprovante_anexado" ? "outline" : "default"}
+                                    size="sm"
+                                    className={cn(
+                                      "h-9 gap-2 shadow-lg",
+                                      targetPayment.status === "comprovante_anexado"
+                                        ? "border-primary text-primary hover:bg-primary/5 shadow-primary/10"
+                                        : "bg-success hover:bg-success/90 text-white shadow-success/25"
+                                    )}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setModalAnexar({ id: targetPayment.id, nome: ben.nome });
+                                    }}
+                                  >
+                                    <Paperclip className="h-4 w-4" />
+                                    <span className="hidden sm:inline text-xs font-semibold">
+                                      {targetPayment.status === "comprovante_anexado" ? "Editar Comprovante" : "Anexar Boleto"}
+                                    </span>
+                                    <span className="sm:hidden text-xs font-semibold">
+                                      {targetPayment.status === "comprovante_anexado" ? "Editar" : "Anexar"}
+                                    </span>
+                                  </Button>
+                                </motion.div>
+                              </div>
                             )}
 
                             <span className="text-sm text-muted-foreground hidden md:block">Desde {ben.desde}</span>

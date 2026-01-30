@@ -41,27 +41,8 @@ export const getBeneficiarios = async (req, res, next) => {
       return res.status(400).json({ error: error.message });
     }
 
-    let responseList = data ? [...data] : [];
-
-    // DEBUG: Inject System Info if empty
-    if (responseList.length === 0) {
-      let count = 0;
-      try {
-        const result = await supabase.from('beneficiarios').select('*', { count: 'exact', head: true });
-        count = result.count || 0;
-      } catch (e) {
-        console.error('Count query failed:', e);
-      }
-
-      const hasServiceKey = !!process.env.SUPABASE_SERVICE_KEY;
-      responseList.push({
-        id: 'system-diag-ben',
-        nome: `[SYSTEM] DB_Rows:${count} | SvcKey:${hasServiceKey}`,
-        cpf: '000.000.000-00',
-        status: status || 'ativo',
-        plano_id: null
-      });
-    }
+    // List matches database results exactly
+    const responseList = data ? [...data] : [];
 
     // Formatar resposta
     const beneficiarios = responseList.map(ben => ({
@@ -205,6 +186,12 @@ export const updateBeneficiario = async (req, res, next) => {
 export const deleteBeneficiario = async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    // Delete associated payments first
+    await supabase
+      .from('pagamentos')
+      .delete()
+      .eq('beneficiario_id', id);
 
     const { error } = await supabase
       .from('beneficiarios')
