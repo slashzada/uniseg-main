@@ -16,6 +16,7 @@ import { ptBR } from "date-fns/locale";
 import { beneficiariosAPI, vendedoresAPI, planosAPI, financeiroAPI } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -82,6 +83,7 @@ const itemVariants = {
 const Beneficiarios = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [filtro, setFiltro] = useState("todos");
   const [filtroVendedor, setFiltroVendedor] = useState("todos");
   const [busca, setBusca] = useState("");
@@ -410,7 +412,7 @@ const Beneficiarios = () => {
                             {/* Attach/Edit Button */}
                             {targetPayment && (
                               <div className="flex items-center gap-2">
-                                {targetPayment.status === "comprovante_anexado" && (
+                                {targetPayment.status === "comprovante_anexado" ? (
                                   <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                                     <div className="flex items-center gap-2">
                                       <Button
@@ -426,66 +428,76 @@ const Beneficiarios = () => {
                                         <span className="hidden sm:inline">Ver Comprovante</span>
                                       </Button>
 
-                                      {user?.papel !== 'Vendedor' && targetPayment.status === 'comprovante_anexado' && (
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-8 w-8 text-destructive hover:text-white hover:bg-destructive"
-                                          title="Rejeitar Comprovante"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (confirm("Deseja realmente rejeitar este comprovante?")) {
-                                              rejeitarPagamentoMutation.mutate(targetPayment.id);
-                                            }
-                                          }}
-                                        >
-                                          <XCircle className="h-4 w-4" />
-                                        </Button>
-                                      )}
-
                                       {user?.papel !== 'Vendedor' && (
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-8 w-8 text-muted-foreground hover:text-white hover:bg-destructive"
-                                          title="Excluir Pagamento"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (confirm("Deseja realmente excluir este pagamento? Esta ação não pode ser desfeita.")) {
-                                              excluirPagamentoMutation.mutate(targetPayment.id);
-                                            }
-                                          }}
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
+                                        <>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-8 text-destructive hover:text-white hover:bg-destructive"
+                                            title="Rejeitar Comprovante"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (confirm("Deseja realmente rejeitar este comprovante?")) {
+                                                rejeitarPagamentoMutation.mutate(targetPayment.id);
+                                              }
+                                            }}
+                                          >
+                                            <XCircle className="h-4 w-4" />
+                                          </Button>
+
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-8 text-muted-foreground hover:text-white hover:bg-destructive"
+                                            title="Excluir Pagamento"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (confirm("Deseja realmente excluir este pagamento? Esta ação não pode ser desfeita.")) {
+                                                excluirPagamentoMutation.mutate(targetPayment.id);
+                                              }
+                                            }}
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        </>
                                       )}
                                     </div>
                                   </motion.div>
-                                )}
-                                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                  <Button
-                                    variant={targetPayment.status === "comprovante_anexado" ? "outline" : "default"}
-                                    size="sm"
-                                    className={cn(
-                                      "h-9 gap-2 shadow-lg",
-                                      targetPayment.status === "comprovante_anexado"
-                                        ? "border-primary text-primary hover:bg-primary/5 shadow-primary/10"
-                                        : "bg-success hover:bg-success/90 text-white shadow-success/25"
+                                ) : (
+                                  <>
+                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                      <Button
+                                        variant="default"
+                                        size="sm"
+                                        className="h-9 gap-2 bg-success hover:bg-success/90 text-white shadow-success/25 shadow-lg"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setModalAnexar({ id: targetPayment.id, nome: ben.nome });
+                                        }}
+                                      >
+                                        <Paperclip className="h-4 w-4" />
+                                        <span className="hidden sm:inline">Anexar Boleto</span>
+                                      </Button>
+                                    </motion.div>
+
+                                    {user?.papel !== 'Vendedor' && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 w-8 text-muted-foreground hover:text-white hover:bg-destructive"
+                                        title="Excluir Pagamento"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (confirm("Deseja realmente excluir este pagamento? Esta ação não pode ser desfeita.")) {
+                                            excluirPagamentoMutation.mutate(targetPayment.id);
+                                          }
+                                        }}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
                                     )}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setModalAnexar({ id: targetPayment.id, nome: ben.nome });
-                                    }}
-                                  >
-                                    <Paperclip className="h-4 w-4" />
-                                    <span className="hidden sm:inline text-xs font-semibold">
-                                      {targetPayment.status === "comprovante_anexado" ? "Editar Comprovante" : "Anexar Boleto"}
-                                    </span>
-                                    <span className="sm:hidden text-xs font-semibold">
-                                      {targetPayment.status === "comprovante_anexado" ? "Editar" : "Anexar"}
-                                    </span>
-                                  </Button>
-                                </motion.div>
+                                  </>
+                                )}
                               </div>
                             )}
 
