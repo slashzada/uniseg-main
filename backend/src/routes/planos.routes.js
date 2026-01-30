@@ -11,11 +11,13 @@ import { body } from 'express-validator';
 
 const router = express.Router();
 
-// Public routes
+router.use(authenticate);
+
+// Listing routes
 router.get('/', getPlanos);
 router.get('/:id', getPlanoById);
 
-router.use(authenticate);
+// Protected routes - Only Admin and Financeiro can create/update/delete plans
 
 // Protected routes - Only Admin and Financeiro can create/update/delete plans
 router.post('/',

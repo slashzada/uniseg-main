@@ -3,27 +3,24 @@ import { validationResult } from 'express-validator';
 
 export const getVendedores = async (req, res, next) => {
   try {
-    const { data: vendedores, error } = await supabase
+    const { data, error } = await supabase
       .from('vendedores')
-      .select('id, nome, email, comissao, created_at, updated_at')
+      .select(`
+        *,
+        beneficiarios (
+          count
+        )
+      `)
       .order('nome', { ascending: true });
 
     if (error) {
       return res.status(400).json({ error: error.message });
     }
 
-    // Get count of beneficiaries for each vendedor
-    const { data: counts, error: countError } = await supabase
-      .from('beneficiarios')
-      .select('vendedor_id');
-
-    if (countError) {
-      console.error('Error fetching beneficiary counts:', countError);
-    }
-
-    const dataWithCounts = vendedores.map(v => ({
+    const dataWithCounts = data.map(v => ({
       ...v,
-      vendasMes: counts?.filter(b => b.vendedor_id === v.id).length || 0
+      vendasMes: v.beneficiarios?.[0]?.count || 0,
+      status: v.status || 'ativo'
     }));
 
     res.json(dataWithCounts);
@@ -39,7 +36,7 @@ export const createVendedor = async (req, res, next) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { nome, email, comissao } = req.body;
+    const { nome, email, comissao, status } = req.body;
 
     const { data, error } = await supabase
       .from('vendedores')
@@ -47,6 +44,7 @@ export const createVendedor = async (req, res, next) => {
         nome,
         email,
         comissao: comissao || 0,
+        status: status || 'ativo',
         created_at: new Date().toISOString()
       })
       .select()

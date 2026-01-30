@@ -11,11 +11,11 @@ import { body } from 'express-validator';
 
 const router = express.Router();
 
-// Public routes
+router.use(authenticate);
+
+// List/Detail routes
 router.get('/', getBeneficiarios);
 router.get('/:id', getBeneficiarioById);
-
-router.use(authenticate);
 
 router.post('/',
   [

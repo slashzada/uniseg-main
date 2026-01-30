@@ -11,12 +11,13 @@ import { body } from 'express-validator';
 
 const router = express.Router();
 
-// Public routes (for debugging/listing)
+router.use(authenticate);
+
+// Listing routes
 router.get('/', getOperadoras);
 router.get('/:id', getOperadoraById);
 
 // Protected routes - Only Admin and Financeiro can create/update/delete operadoras
-router.use(authenticate);
 
 router.post('/',
   requireNotVendedor,

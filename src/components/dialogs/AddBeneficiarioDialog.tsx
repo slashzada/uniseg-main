@@ -46,6 +46,7 @@ export const AddBeneficiarioDialog = ({
     operadora_id: "",
     vendedor_id: "",
     vigencia: "", // New Field
+    telefone: "", // New Field
     valor: "", // This field is not strictly needed for the backend API but kept for form compatibility
   });
 
@@ -76,6 +77,7 @@ export const AddBeneficiarioDialog = ({
         operadora_id: "",
         vendedor_id: "",
         vigencia: "",
+        telefone: "",
         valor: "",
       });
 
@@ -242,17 +244,32 @@ export const AddBeneficiarioDialog = ({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="vigencia">Vigência</Label>
-            <Input
-              id="vigencia"
-              type="date"
-              value={formData.vigencia}
-              onChange={(e) =>
-                setFormData({ ...formData, vigencia: e.target.value })
-              }
-              disabled={loading}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="vigencia">Vigência</Label>
+              <Input
+                id="vigencia"
+                type="date"
+                value={formData.vigencia}
+                onChange={(e) =>
+                  setFormData({ ...formData, vigencia: e.target.value })
+                }
+                disabled={loading}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="telefone">Telefone</Label>
+              <Input
+                id="telefone"
+                placeholder="Ex: (11) 99999-9999"
+                value={formData.telefone}
+                onChange={(e) =>
+                  setFormData({ ...formData, telefone: e.target.value })
+                }
+                disabled={loading}
+              />
+            </div>
           </div>
 
           <div className="flex gap-3 justify-end pt-4">

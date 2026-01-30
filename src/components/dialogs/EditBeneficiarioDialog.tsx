@@ -36,6 +36,7 @@ interface Beneficiario {
   plano_id: string;
   operadora_id: string;
   vigencia?: string;
+  telefone?: string;
 }
 
 interface EditBeneficiarioDialogProps {
@@ -64,6 +65,7 @@ export const EditBeneficiarioDialog = ({
     vendedor_id: "",
     status: "",
     vigencia: "",
+    telefone: "",
   });
 
   // Fetch plans based on selected operadora
@@ -79,6 +81,7 @@ export const EditBeneficiarioDialog = ({
         vendedor_id: beneficiario.vendedorId,
         status: beneficiario.status,
         vigencia: beneficiario.vigencia || "",
+        telefone: beneficiario.telefone || "",
       });
     }
   }, [beneficiario]);
@@ -122,6 +125,7 @@ export const EditBeneficiarioDialog = ({
       vendedor_id: formData.vendedor_id,
       status: formData.status,
       vigencia: formData.vigencia,
+      telefone: formData.telefone,
     });
   };
 
@@ -259,17 +263,32 @@ export const EditBeneficiarioDialog = ({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="vigencia">Vigência</Label>
-            <Input
-              id="vigencia"
-              type="date"
-              value={formData.vigencia}
-              onChange={(e) =>
-                setFormData({ ...formData, vigencia: e.target.value })
-              }
-              disabled={loading}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="vigencia">Vigência</Label>
+              <Input
+                id="vigencia"
+                type="date"
+                value={formData.vigencia}
+                onChange={(e) =>
+                  setFormData({ ...formData, vigencia: e.target.value })
+                }
+                disabled={loading}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="telefone">Telefone</Label>
+              <Input
+                id="telefone"
+                placeholder="Ex: (11) 99999-9999"
+                value={formData.telefone}
+                onChange={(e) =>
+                  setFormData({ ...formData, telefone: e.target.value })
+                }
+                disabled={loading}
+              />
+            </div>
           </div>
 
           <div className="flex gap-3 justify-end pt-4">

@@ -113,11 +113,12 @@ export const createBeneficiario = async (req, res, next) => {
       .from('beneficiarios')
       .insert({
         nome,
-        cpf,
+        cpf: cleanDocument(cpf),
         plano_id,
         vendedor_id: vendedor_id || null,
         status: 'ativo',
         vigencia: vigencia || null,
+        telefone: telefone || null,
         desde: new Date().toISOString(),
         created_at: new Date().toISOString()
       })
@@ -130,12 +131,17 @@ export const createBeneficiario = async (req, res, next) => {
 
     // 2. Create Initial Payment
     if (beneficiario && valor) {
+      // Calculate due date: 1 month after vigencia or current date
+      const baseDate = vigencia ? new Date(vigencia) : new Date();
+      const dueDate = new Date(baseDate);
+      dueDate.setMonth(dueDate.getMonth() + 1);
+
       const { error: errorPag } = await supabase
         .from('pagamentos')
         .insert({
           beneficiario_id: beneficiario.id,
           valor: parseFloat(valor),
-          vencimento: vigencia || new Date().toISOString(),
+          vencimento: dueDate.toISOString().split('T')[0], // YYYY-MM-DD
           status: 'pendente',
           created_at: new Date().toISOString()
         });

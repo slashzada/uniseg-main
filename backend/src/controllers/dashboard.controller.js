@@ -89,13 +89,18 @@ export const getStats = async (req, res, next) => {
     // Simplified: variation in % of pagos/total current vs previous
     const trendAdimplencia = { value: 0, isPositive: true }; // Placeholder or implemented if requested
 
-    // 4. Pagamentos Vencidos (Lógica: Não Pago E Vencimento < Agora)
-    const hoje = new Date().toISOString();
+    // 4. Pagamentos Vencidos (Lógica: Não Pago E Vencimento < Agora - 1 dia)
+    // Se hoje é 30/01 e venceu 27/01: 27/01 < 29/01 (Verdadeiro -> Atrasado)
+    // Se hoje é 28/01 e venceu 27/01: 27/01 < 27/01 (Falso -> Não Atrasado)
+    const carencia = new Date();
+    carencia.setDate(carencia.getDate() - 1);
+    const limiteAtraso = carencia.toISOString().split('T')[0];
+
     let queryVencidos = supabase
       .from('pagamentos')
       .select('valor')
       .neq('status', 'pago')
-      .lt('vencimento', hoje);
+      .lt('vencimento', limiteAtraso);
 
     if (beneficiarioIds) {
       queryVencidos = queryVencidos.in('beneficiario_id', beneficiarioIds);
