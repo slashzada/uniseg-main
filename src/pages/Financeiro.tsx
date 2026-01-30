@@ -20,6 +20,9 @@ import {
   Loader2,
   XCircle,
   Trash2,
+  DollarSign,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
 import {
   Select,
@@ -547,6 +550,35 @@ const Financeiro = () => {
                                           <span className="hidden sm:inline font-semibold">Confirmar Pagamento</span>
                                         </Button>
                                       </motion.div>
+
+                                      {/* New Actions for Admin in Analysis */}
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-9 w-9 text-destructive hover:text-white hover:bg-destructive"
+                                        title="Rejeitar Comprovante"
+                                        onClick={() => {
+                                          if (confirm("Deseja realmente rejeitar este comprovante?")) {
+                                            rejeitarPagamentoMutation.mutate(pag.id);
+                                          }
+                                        }}
+                                      >
+                                        <XCircle className="h-4 w-4" />
+                                      </Button>
+
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-9 w-9 text-muted-foreground hover:text-white hover:bg-destructive"
+                                        title="Excluir Pagamento"
+                                        onClick={() => {
+                                          if (confirm("Deseja realmente excluir este pagamento? Esta ação não pode ser desfeita.")) {
+                                            excluirPagamentoMutation.mutate(pag.id);
+                                          }
+                                        }}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
                                     </>
                                   ) : pag.status !== "pago" ? (
                                     <>
@@ -576,6 +608,22 @@ const Financeiro = () => {
                                       >
                                         <Mail className="h-4 w-4" />
                                       </Button>
+
+                                      {user?.papel !== 'Vendedor' && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-9 w-9 text-muted-foreground hover:text-white hover:bg-destructive"
+                                          title="Excluir Pagamento"
+                                          onClick={() => {
+                                            if (confirm("Deseja realmente excluir este pagamento? Esta ação não pode ser desfeita.")) {
+                                              excluirPagamentoMutation.mutate(pag.id);
+                                            }
+                                          }}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      )}
                                     </>
                                   ) : (
                                     <div className="flex items-center gap-2">
@@ -588,22 +636,6 @@ const Financeiro = () => {
                                         <Eye className="h-4 w-4" />
                                         <span className="hidden sm:inline">Ver Comprovante</span>
                                       </Button>
-
-                                      {user?.papel !== 'Vendedor' && pag.status === 'comprovante_anexado' && (
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-9 w-9 text-destructive hover:text-white hover:bg-destructive"
-                                          title="Rejeitar Comprovante"
-                                          onClick={() => {
-                                            if (confirm("Deseja realmente rejeitar este comprovante?")) {
-                                              rejeitarPagamentoMutation.mutate(pag.id);
-                                            }
-                                          }}
-                                        >
-                                          <XCircle className="h-4 w-4" />
-                                        </Button>
-                                      )}
 
                                       {user?.papel !== 'Vendedor' && (
                                         <Button
@@ -756,7 +788,7 @@ const Financeiro = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </AppLayout>
+    </AppLayout >
   );
 };
 
