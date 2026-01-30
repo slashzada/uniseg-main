@@ -120,10 +120,17 @@ const Financeiro = () => {
     if (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('data:')) {
       window.open(url, '_blank');
     } else {
+      // For mock filenames, open a placeholder and show a success toast
       uiToast({
         title: "Visualizando Arquivo",
         description: `Abrindo arquivo: ${url}`,
       });
+
+      // Simulate opening a real document for the demo
+      const placeholderUrl = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
+      setTimeout(() => {
+        window.open(placeholderUrl, '_blank');
+      }, 500);
     }
   };
 
