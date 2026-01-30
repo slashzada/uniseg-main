@@ -104,9 +104,7 @@ const Configuracoes = () => {
     queryFn: vendedoresAPI.getAll,
     select: (data) => data.map(v => ({
       ...v,
-      id: v.id,
-      vendasMes: Math.floor(Math.random() * 20), // Mocking sales count
-      status: v.status || 'ativo',
+      status: (v as any).status || 'ativo',
     })),
   });
 
