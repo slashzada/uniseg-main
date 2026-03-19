@@ -5,20 +5,33 @@ import {
   createPagamento,
   updatePagamento,
   deletePagamento,
-  anexarBoleto
+  anexarBoleto,
+  confirmarPagamento,
+  rejeitarPagamento,
+  uploadBoleto,
+  uploadMiddleware
 } from '../controllers/financeiro.controller.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireNotVendedor } from '../middleware/auth.js';
 import { body } from 'express-validator';
 
 const router = express.Router();
 
+// Financeiro routes
 router.use(authenticate);
 
+// Publicly readable/uploadable for authenticated users (Controller handles vendor filtering)
 router.get('/', getPagamentos);
+router.post('/upload', uploadMiddleware.single('file'), uploadBoleto);
+router.post('/:id/boleto', anexarBoleto);
+router.post('/:id/rejeitar', rejeitarPagamento);
+
+// Admin/Financeiro only routes
+router.use(requireNotVendedor);
+
 router.get('/:id', getPagamentoById);
 router.post('/',
   [
-    body('beneficiario_id').isUUID(),
+    body('beneficiario_id').isMongoId(),
     body('valor').isFloat({ min: 0 }),
     body('vencimento').isISO8601()
   ],
@@ -26,12 +39,13 @@ router.post('/',
 );
 router.put('/:id',
   [
-    body('status').optional().isIn(['pago', 'pendente', 'vencido']),
+    body('status').optional().isIn(['pago', 'pendente', 'vencido', 'comprovante_anexado']),
     body('valor').optional().isFloat({ min: 0 })
   ],
   updatePagamento
 );
-router.post('/:id/boleto', anexarBoleto);
+router.post('/:id/confirmar', confirmarPagamento);
 router.delete('/:id', deletePagamento);
 
 export default router;
+

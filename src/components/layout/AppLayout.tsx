@@ -12,6 +12,7 @@ import {
   Shield,
   ChevronLeft,
   Sparkles,
+  HandCoins, // New icon for Comissões
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ const navItems = [
   { title: "Planos", url: "/planos", icon: FileText },
   { title: "Beneficiários", url: "/beneficiarios", icon: Users },
   { title: "Financeiro", url: "/financeiro", icon: DollarSign },
+  { title: "Comissões", url: "/comissoes", icon: HandCoins }, // New Nav Item
   { title: "Configurações", url: "/configuracoes", icon: Settings },
 ];
 
@@ -100,13 +102,13 @@ export function AppLayout({ children }: AppLayoutProps) {
         <div className="relative flex h-16 items-center justify-between border-b border-sidebar-border/50 px-4">
           <div className="flex items-center gap-3">
             <motion.div
-              className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sidebar-primary to-sidebar-primary/80"
+              className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-sidebar-primary to-sidebar-primary/80"
               whileHover={{ scale: 1.05, rotate: 5 }}
               transition={{ type: "spring", stiffness: 400 }}
             >
               <Shield className="h-5 w-5 text-sidebar-primary-foreground" />
               <motion.div
-                className="absolute inset-0 rounded-xl bg-sidebar-primary"
+                className="absolute inset-0 rounded-2xl bg-sidebar-primary"
                 animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0, 0.5] }}
                 transition={{ duration: 2, repeat: Infinity }}
               />
@@ -136,29 +138,41 @@ export function AppLayout({ children }: AppLayoutProps) {
         {/* Navigation */}
         <nav className="relative flex-1 overflow-y-auto scrollbar-thin px-3 py-4">
           <ul className="space-y-1">
-            {navItems.map((item, index) => (
-              <motion.li
-                key={item.title}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.05 }}
-              >
-                <NavLink
-                  to={item.url}
-                  end={item.url === "/"}
-                  className={cn(
-                    "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                    "hover:bg-sidebar-accent/80 hover:translate-x-1",
-                    !sidebarOpen && "justify-center px-2"
-                  )}
-                  activeClassName="bg-sidebar-accent text-sidebar-primary shadow-lg shadow-sidebar-primary/20"
-                  onClick={() => setMobileOpen(false)}
+            {navItems
+              .filter(item => {
+                // Hide specific tabs for Vendedor role
+                if (user?.papel === "Vendedor") {
+                  return !["Financeiro", "Configurações", "Operadoras", "Planos", "Comissões"].includes(item.title);
+                }
+                // Hide Comissões and Configurações for Financeiro if not Admin
+                if (user?.papel === "Financeiro") {
+                  return !["Configurações"].includes(item.title);
+                }
+                return true;
+              })
+              .map((item, index) => (
+                <motion.li
+                  key={item.title}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
                 >
-                  <item.icon className="h-5 w-5 shrink-0 transition-transform group-hover:scale-110" />
-                  {sidebarOpen && <span>{item.title}</span>}
-                </NavLink>
-              </motion.li>
-            ))}
+                  <NavLink
+                    to={item.url}
+                    end={item.url === "/"}
+                    className={cn(
+                      "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                      "hover:bg-sidebar-accent/80 hover:translate-x-1",
+                      !sidebarOpen && "justify-center px-2"
+                    )}
+                    activeClassName="bg-sidebar-accent text-sidebar-primary shadow-lg shadow-sidebar-primary/20"
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <item.icon className="h-5 w-5 shrink-0 transition-transform group-hover:scale-110" />
+                    {sidebarOpen && <span>{item.title}</span>}
+                  </NavLink>
+                </motion.li>
+              ))}
           </ul>
         </nav>
 

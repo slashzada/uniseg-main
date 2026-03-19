@@ -1,156 +1,68 @@
-import { supabase } from '../config/supabase.js';
+import { Plano } from '../models/Plano.js';
+import { Operadora } from '../models/Operadora.js';
+import { Beneficiario } from '../models/Beneficiario.js';
 import { validationResult } from 'express-validator';
 
 export const getPlanos = async (req, res, next) => {
   try {
     const { tipo, operadora_id, busca } = req.query;
+    const filter = {};
+    if (tipo) filter.tipo = tipo;
+    if (operadora_id) filter.operadora_id = operadora_id;
+    if (busca) filter.nome = { $regex: busca, $options: 'i' };
 
-    let query = supabase
-      .from('planos')
-      .select(`
-        *,
-        operadora:operadoras(nome, id),
-        beneficiarios:beneficiarios(count)
-      `)
-      .order('nome', { ascending: true });
+    const planos = await Plano.find(filter).populate('operadora_id', 'nome').sort({ nome: 1 }).lean();
 
-    if (tipo) {
-      query = query.eq('tipo', tipo);
+    for (let plano of planos) {
+      plano.operadora = plano.operadora_id?.nome || 'N/A';
+      plano.operadora_id = plano.operadora_id?._id?.toString() || plano.operadora_id;
+      plano.id = plano._id.toString();
+      const benCount = await Beneficiario.countDocuments({ plano_id: plano._id });
+      plano.beneficiarios = benCount;
     }
-
-    if (operadora_id) {
-      query = query.eq('operadora_id', operadora_id);
-    }
-
-    if (busca) {
-      query = query.or(`nome.ilike.%${busca}%,operadora.nome.ilike.%${busca}%`);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      return res.status(400).json({ error: error.message });
-    }
-
-    // Formatar resposta
-    const planos = data.map(plano => ({
-      ...plano,
-      operadora: plano.operadora?.nome || 'N/A',
-      beneficiarios: plano.beneficiarios?.[0]?.count || 0
-    }));
 
     res.json(planos);
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
 };
 
 export const getPlanoById = async (req, res, next) => {
   try {
-    const { id } = req.params;
-
-    const { data, error } = await supabase
-      .from('planos')
-      .select(`
-        *,
-        operadora:operadoras(*),
-        beneficiarios:beneficiarios(count)
-      `)
-      .eq('id', id)
-      .single();
-
-    if (error) {
-      return res.status(404).json({ error: 'Plano not found' });
-    }
-
-    res.json({
-      ...data,
-      operadora: data.operadora?.nome || 'N/A',
-      beneficiarios: data.beneficiarios?.[0]?.count || 0
-    });
-  } catch (error) {
-    next(error);
-  }
+    const plano = await Plano.findById(req.params.id).lean();
+    if (!plano) return res.status(404).json({ error: 'Plano not found' });
+    plano.id = plano._id.toString();
+    res.json({ ...plano, operadora: 'N/A', beneficiarios: 0 });
+  } catch (error) { next(error); }
 };
 
 export const createPlano = async (req, res, next) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    const { nome, operadora_id, valor, tipo, popular } = req.body;
-
-    const { data, error } = await supabase
-      .from('planos')
-      .insert({
-        nome,
-        operadora_id,
-        valor,
-        tipo,
-        popular: popular || false,
-        created_at: new Date().toISOString()
-      })
-      .select()
-      .single();
-
-    if (error) {
-      return res.status(400).json({ error: error.message });
-    }
-
-    res.status(201).json(data);
-  } catch (error) {
-    next(error);
-  }
+    let plano = new Plano({ ...req.body });
+    await plano.save();
+    plano = plano.toObject();
+    plano.id = plano._id.toString();
+    res.status(201).json(plano);
+  } catch (error) { next(error); }
 };
 
 export const updatePlano = async (req, res, next) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    const { id } = req.params;
-    const updates = { ...req.body, updated_at: new Date().toISOString() };
-
-    const { data, error } = await supabase
-      .from('planos')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      return res.status(400).json({ error: error.message });
-    }
-
-    if (!data) {
-      return res.status(404).json({ error: 'Plano not found' });
-    }
-
-    res.json(data);
-  } catch (error) {
-    next(error);
-  }
+    let plano = await Plano.findByIdAndUpdate(req.params.id, req.body, { new: true }).lean();
+    if (!plano) return res.status(404).json({ error: 'Plano not found' });
+    plano.id = plano._id.toString();
+    res.json(plano);
+  } catch (error) { next(error); }
 };
 
 export const deletePlano = async (req, res, next) => {
   try {
-    const { id } = req.params;
-
-    const { error } = await supabase
-      .from('planos')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      return res.status(400).json({ error: error.message });
-    }
-
+    const plano = await Plano.findByIdAndDelete(req.params.id);
+    if (!plano) return res.status(404).json({ error: 'Plano not found' });
     res.json({ message: 'Plano deleted successfully' });
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
 };

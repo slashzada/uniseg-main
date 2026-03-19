@@ -6,6 +6,7 @@ interface User {
   nome: string;
   email: string;
   papel: "Admin" | "Financeiro" | "Vendedor";
+  vendedor_id?: string;
 }
 
 interface AuthContextType {

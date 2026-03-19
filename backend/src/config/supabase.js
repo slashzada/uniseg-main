@@ -10,4 +10,9 @@ if (!supabaseUrl || !supabaseKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
+// Log key type for debugging (safe check)
+const isServiceKey = !!process.env.SUPABASE_SERVICE_KEY;
+console.log(`[Supabase] Initializing client. URL: ${supabaseUrl}`);
+console.log(`[Supabase] Using ${isServiceKey ? 'SERVICE_ROLE' : 'ANON/PUBLIC'} key`);
+
 export const supabase = createClient(supabaseUrl, supabaseKey);

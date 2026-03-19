@@ -1,5 +1,16 @@
 // Configuração da API
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://uniseg-main.onrender.com/api';
+
+// Helper to clean undefined/null params
+const cleanParams = (params: any) => {
+  const newParams: any = {};
+  Object.keys(params || {}).forEach(key => {
+    if (params[key] !== undefined && params[key] !== null && params[key] !== '') {
+      newParams[key] = params[key];
+    }
+  });
+  return newParams;
+};
 
 // Função auxiliar para fazer requisições
 async function request<T>(
@@ -7,7 +18,7 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = localStorage.getItem('uniseguros_token');
-  
+
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...options.headers,
@@ -27,6 +38,11 @@ async function request<T>(
     throw new Error(error.error || `HTTP error! status: ${response.status}`);
   }
 
+  // Handle CSV response specifically
+  if (response.headers.get('content-type')?.includes('text/csv')) {
+    return response.text() as Promise<T>; // Return raw text for CSV
+  }
+
   return response.json();
 }
 
@@ -37,11 +53,11 @@ export const authAPI = {
       method: 'POST',
       body: JSON.stringify({ email, senha }),
     });
-    
+
     // Salvar token
     localStorage.setItem('uniseguros_token', data.token);
     localStorage.setItem('uniseguros_user', JSON.stringify(data.user));
-    
+
     return data;
   },
 
@@ -50,10 +66,10 @@ export const authAPI = {
       method: 'POST',
       body: JSON.stringify({ nome, email, senha, papel }),
     });
-    
+
     localStorage.setItem('uniseguros_token', data.token);
     localStorage.setItem('uniseguros_user', JSON.stringify(data.user));
-    
+
     return data;
   },
 
@@ -65,6 +81,14 @@ export const authAPI = {
     localStorage.removeItem('uniseguros_token');
     localStorage.removeItem('uniseguros_user');
   },
+};
+
+// API de Usuários (Admin Management)
+export const usuariosAPI = {
+  getAll: () => request<any[]>('/usuarios'),
+  create: (data: any) => request<any>('/usuarios', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: any) => request<any>(`/usuarios/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<{ message: string }>(`/usuarios/${id}`, { method: 'DELETE' }),
 };
 
 // API de Operadoras
@@ -79,7 +103,7 @@ export const operadorasAPI = {
 // API de Planos
 export const planosAPI = {
   getAll: (params?: { tipo?: string; operadora_id?: string; busca?: string }) => {
-    const query = new URLSearchParams(params as any).toString();
+    const query = new URLSearchParams(cleanParams(params)).toString();
     return request<any[]>(`/planos${query ? `?${query}` : ''}`);
   },
   getById: (id: string) => request<any>(`/planos/${id}`),
@@ -91,7 +115,7 @@ export const planosAPI = {
 // API de Beneficiários
 export const beneficiariosAPI = {
   getAll: (params?: { status?: string; vendedor_id?: string; busca?: string }) => {
-    const query = new URLSearchParams(params as any).toString();
+    const query = new URLSearchParams(cleanParams(params)).toString();
     return request<any[]>(`/beneficiarios${query ? `?${query}` : ''}`);
   },
   getById: (id: string) => request<any>(`/beneficiarios/${id}`),
@@ -100,20 +124,44 @@ export const beneficiariosAPI = {
   delete: (id: string) => request<{ message: string }>(`/beneficiarios/${id}`, { method: 'DELETE' }),
 };
 
+// API de Vendedores (New)
+export const vendedoresAPI = {
+  getAll: () => request<any[]>('/vendedores'),
+  create: (data: any) => request<any>('/vendedores', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: any) => request<any>(`/vendedores/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<{ message: string }>(`/vendedores/${id}`, { method: 'DELETE' }),
+};
+
 // API de Financeiro
 export const financeiroAPI = {
   getAll: (params?: { status?: string; busca?: string }) => {
-    const query = new URLSearchParams(params as any).toString();
+    const query = new URLSearchParams(cleanParams(params)).toString();
     return request<any[]>(`/financeiro${query ? `?${query}` : ''}`);
   },
   getById: (id: string) => request<any>(`/financeiro/${id}`),
   create: (data: any) => request<any>('/financeiro', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: any) => request<any>(`/financeiro/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  anexarBoleto: (id: string, boleto_nome: string, boleto_url?: string) => 
-    request<any>(`/financeiro/${id}/boleto`, { 
-      method: 'POST', 
-      body: JSON.stringify({ boleto_nome, boleto_url }) 
+  uploadBoleto: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = localStorage.getItem('uniseguros_token');
+    const response = await fetch(`${API_BASE_URL}/financeiro/upload`, {
+      method: 'POST', body: formData,
+      headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Upload failed' }));
+      throw new Error(error.error || 'Upload failed');
+    }
+    return response.json();
+  },
+  anexarBoleto: (id: string, boleto_nome: string, boleto_url?: string) =>
+    request<any>(`/financeiro/${id}/boleto`, {
+      method: 'POST',
+      body: JSON.stringify({ boleto_nome, boleto_url })
     }),
+  confirmarPagamento: (id: string) => request<any>(`/financeiro/${id}/confirmar`, { method: 'POST' }),
+  rejeitarPagamento: (id: string) => request<any>(`/financeiro/${id}/rejeitar`, { method: 'POST' }),
   delete: (id: string) => request<{ message: string }>(`/financeiro/${id}`, { method: 'DELETE' }),
 };
 
@@ -121,4 +169,24 @@ export const financeiroAPI = {
 export const dashboardAPI = {
   getStats: () => request<any>('/dashboard/stats'),
   getRevenue: () => request<{ meses: string[]; receitas: number[] }>('/dashboard/revenue'),
+};
+
+// API de Configurações Globais (New)
+export const configuracoesAPI = {
+  get: () => request<any>('/configuracoes'),
+  update: (data: { taxa_admin?: number; dias_carencia?: number; multa_atraso?: number }) =>
+    request<any>('/configuracoes', { method: 'PUT', body: JSON.stringify(data) }),
+};
+
+// API de Comissões (NEW)
+export const comissoesAPI = {
+  getResumo: (params?: { timeframe?: string; startDate?: string; endDate?: string }) => {
+    const query = new URLSearchParams(cleanParams(params || {})).toString();
+    return request<any[]>(`/comissoes/resumo${query ? `?${query}` : ''}`);
+  },
+  liquidar: (vendedorId: string) => request<any>(`/comissoes/liquidar/${vendedorId}`, { method: 'POST' }),
+  generateReport: (params: { timeframe: string; vendedorId?: string }) => {
+    const query = new URLSearchParams(cleanParams(params)).toString();
+    return request<unknown>(`/comissoes/relatorio${query ? `?${query}` : ''}`);
+  },
 };

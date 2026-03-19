@@ -58,19 +58,19 @@ const Login = () => {
             transition={{ duration: 10, repeat: Infinity }}
           />
         </div>
-        
+
         {/* Pattern overlay */}
         <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.03%22%3E%3Cpath%20d%3D%22M36%2034v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6%2034v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6%204V0H4v4H0v2h4v4h2V6h4V4H6z%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E')] opacity-50" />
-        
+
         <div className="relative z-10 flex flex-col justify-center px-12 xl:px-20">
           {/* Logo */}
-          <motion.div 
+          <motion.div
             className="flex items-center gap-4 mb-10"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <motion.div 
+            <motion.div
               className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 shadow-2xl"
               whileHover={{ rotate: [0, -5, 5, 0], scale: 1.05 }}
               transition={{ duration: 0.4 }}
@@ -83,41 +83,40 @@ const Login = () => {
           </motion.div>
 
           {/* Headline */}
-          <motion.h1 
+          <motion.h1
             className="text-4xl xl:text-5xl font-bold text-white leading-tight mb-6"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
           >
-            Gestão inteligente de{" "}
+            Gestão  de{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-cyan-300">
               planos de saúde
             </span>
           </motion.h1>
 
-          <motion.p 
+          <motion.p
             className="text-lg text-white/80 leading-relaxed max-w-md mb-12"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            Administre operadoras, planos, beneficiários e finanças em um só lugar.
-            Segurança, controle e tranquilidade para seu negócio.
+            Sistema Interno Uniseguros
           </motion.p>
 
           {/* Stats */}
-          <motion.div 
+          <motion.div
             className="grid grid-cols-3 gap-6"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
           >
             {[
-              { value: "1.248+", label: "Beneficiários", icon: Users },
-              { value: "R$ 67k", label: "Receita/mês", icon: DollarSign },
-              { value: "94.3%", label: "Adimplência", icon: TrendingUp },
+              { value: "+", label: "Beneficiários", icon: Users },
+              { value: "R$ k", label: "Receita/mês", icon: DollarSign },
+              { value: "%", label: "Adimplência", icon: TrendingUp },
             ].map((stat, index) => (
-              <motion.div 
+              <motion.div
                 key={stat.label}
                 className="text-center p-4 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10"
                 whileHover={{ y: -4, backgroundColor: "rgba(255,255,255,0.1)" }}
@@ -147,7 +146,7 @@ const Login = () => {
 
         <div className="w-full max-w-md relative z-10">
           {/* Mobile logo */}
-          <motion.div 
+          <motion.div
             className="flex items-center gap-3 mb-8 lg:hidden"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -241,31 +240,12 @@ const Login = () => {
                   </motion.div>
                 </form>
 
-                {/* Demo credentials */}
-                <motion.div 
-                  className="mt-6 p-4 rounded-xl bg-muted/50 border border-border/50"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  <div className="flex items-center gap-2 mb-3">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    <p className="text-xs font-semibold text-foreground">
-                      Credenciais de demonstração
-                    </p>
-                  </div>
-                  <div className="space-y-1.5 text-xs text-muted-foreground">
-                    <p><span className="font-medium text-foreground">Admin:</span> admin@uniseguros.com / admin123</p>
-                    <p><span className="font-medium text-foreground">Financeiro:</span> maria@uniseguros.com / maria123</p>
-                    <p><span className="font-medium text-foreground">Vendedor:</span> joao@uniseguros.com / joao123</p>
-                  </div>
-                </motion.div>
               </CardContent>
             </Card>
           </motion.div>
 
           <p className="text-center text-sm text-muted-foreground mt-8">
-            © 2026 Uniseguros. Todos os direitos reservados.
+            © 2026 Uniseguros. Todos os direitos reservados a Eduardo Passos
           </p>
         </div>
       </div>

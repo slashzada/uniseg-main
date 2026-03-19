@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,23 +6,60 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Users, User, TrendingUp, TrendingDown, UserCheck, Percent } from "lucide-react";
+import { Plus, Search, Users, User, TrendingDown, UserCheck, Percent, Loader2, MoreVertical, Edit, Trash2, Paperclip, FileText, X, Upload, CheckCircle2, Eye, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AddBeneficiarioDialog } from "@/components/dialogs/AddBeneficiarioDialog";
+import { EditBeneficiarioDialog } from "@/components/dialogs/EditBeneficiarioDialog";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { beneficiariosAPI, vendedoresAPI, planosAPI, financeiroAPI } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-const vendedores = [
-  { id: 1, nome: "João Vendedor", comissao: 5 },
-  { id: 2, nome: "Maria Sales", comissao: 7.5 },
-  { id: 3, nome: "Carlos Souza", comissao: 4 },
-];
+// Define the structure of the data returned by the backend list endpoint
+interface BackendBeneficiarioResponse {
+  id: string;
+  nome: string;
+  cpf: string;
+  plano_id: string; // Original FK
+  vendedor_id: string; // Original FK
+  status: "ativo" | "inadimplente" | "inativo";
+  desde: string;
+  plano: string; // Plan name (flattened by backend controller)
+  operadora: string; // Operadora name (flattened by backend controller)
+  operadora_id: string; // Operadora ID (flattened by backend controller)
+  valorPlano: number;
+  vendedor: string; // Vendedor name (flattened by backend controller)
+  comissao: number;
+  vigencia?: string; // New Field from Backend
+  created_at?: string; // Mongoose timestamp
+}
 
-const beneficiarios = [
-  { id: 1, nome: "Maria Silva", cpf: "123.456.789-00", plano: "Premium Familiar", operadora: "Bradesco Saúde", status: "ativo", desde: "Jan 2024", vendedorId: 2, valorPlano: 850 },
-  { id: 2, nome: "João Santos", cpf: "234.567.890-11", plano: "Individual Plus", operadora: "Unimed", status: "ativo", desde: "Mar 2024", vendedorId: 1, valorPlano: 450 },
-  { id: 3, nome: "Ana Costa", cpf: "345.678.901-22", plano: "Empresarial PME", operadora: "SulAmérica", status: "inadimplente", desde: "Jun 2023", vendedorId: 2, valorPlano: 1200 },
-  { id: 4, nome: "Carlos Lima", cpf: "456.789.012-33", plano: "Individual Básico", operadora: "Unimed", status: "ativo", desde: "Set 2024", vendedorId: 3, valorPlano: 320 },
-  { id: 5, nome: "Paula Mendes", cpf: "567.890.123-44", plano: "Premium Individual", operadora: "Amil", status: "ativo", desde: "Nov 2024", vendedorId: 1, valorPlano: 680 },
-  { id: 6, nome: "Roberto Alves", cpf: "678.901.234-55", plano: "Individual Plus", operadora: "Unimed", status: "inativo", desde: "Fev 2023", vendedorId: 3, valorPlano: 450 },
-];
+interface Beneficiario {
+  id: string;
+  nome: string;
+  cpf: string;
+  plano: string;
+  plano_id: string;
+  operadora: string;
+  operadora_id: string; // Note: This ID is not returned by the list endpoint, setting to empty string in select
+  status: "ativo" | "inadimplente" | "inativo";
+  desde: string; // ISO date string, but backend formats it
+  vendedorId: string; // Vendedor ID (mapped from vendedor_id)
+  vendedor: string; // Vendedor name
+  comissao: number; // Vendedor commission rate
+  valorPlano: number;
+  vigencia: string; // Formatted date
+}
 
 const statusConfig = {
   ativo: { label: "Ativo", className: "bg-success/15 text-success border-success/30" },
@@ -44,156 +81,285 @@ const itemVariants = {
 };
 
 const Beneficiarios = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { user } = useAuth();
   const [filtro, setFiltro] = useState("todos");
   const [filtroVendedor, setFiltroVendedor] = useState("todos");
   const [busca, setBusca] = useState("");
+  const [openAddDialog, setOpenAddDialog] = useState(false);
+  const [openEditDialog, setOpenEditDialog] = useState(false);
+  const [selectedBeneficiario, setSelectedBeneficiario] = useState<Beneficiario | undefined>(undefined);
+  const [openDeleteAlert, setOpenDeleteAlert] = useState(false);
+  const [beneficiarioToDelete, setBeneficiarioToDelete] = useState<Beneficiario | null>(null);
 
-  const getVendedor = (vendedorId: number) => vendedores.find(v => v.id === vendedorId);
+  // New State for "Anexar Boleto" (Copied from Financeiro)
+  const [modalAnexar, setModalAnexar] = useState<{ id: string, nome: string } | null>(null);
+  const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const beneficiariosFiltrados = beneficiarios.filter((ben) => {
-    const matchStatus = filtro === "todos" || ben.status === filtro;
-    const matchVendedor = filtroVendedor === "todos" || ben.vendedorId.toString() === filtroVendedor;
-    const matchBusca = ben.nome.toLowerCase().includes(busca.toLowerCase()) ||
-                       ben.cpf.includes(busca);
-    return matchStatus && matchBusca && matchVendedor;
+  // 1. Fetch Dependency Lists
+  const { data: vendedores, isLoading: loadingVendedores } = useQuery<any[]>({
+    queryKey: ["vendedores"],
+    queryFn: vendedoresAPI.getAll,
   });
 
+  const { data: planos } = useQuery<any[]>({
+    queryKey: ["planos"],
+    queryFn: () => planosAPI.getAll({}),
+  });
+
+  // 1b. Fetch Payments to match with Beneficiaries for the "Anexar Boleto" button
+  const { data: allPayments } = useQuery<any[]>({
+    queryKey: ["pagamentos", "all_short"],
+    queryFn: () => financeiroAPI.getAll({}), // Get all to catch pendente/vencido/etc
+  });
+
+  // 2. Fetch Beneficiarios
+  const { data: beneficiarios, isLoading, refetch } = useQuery<BackendBeneficiarioResponse[], Error, Beneficiario[]>({
+    queryKey: ["beneficiarios", filtro, filtroVendedor, busca, vendedores, planos],
+    queryFn: () => beneficiariosAPI.getAll({
+      status: filtro === "todos" ? undefined : filtro,
+      vendedor_id: filtroVendedor === "todos" ? undefined : filtroVendedor,
+      busca: busca || undefined
+    }),
+    refetchInterval: 30000, // Refetch every 30 seconds
+    select: (data) => data.map(ben => {
+      // Trust the backend for flattened names
+      return {
+        ...ben,
+        status: (ben.status || "ativo").toLowerCase(),
+        plano_id: ben.plano_id,
+        operadora_id: ben.operadora_id,
+        vendedorId: ben.vendedor_id,
+
+        // Names come directly from the API formatter now
+        plano: ben.plano,
+        operadora: ben.operadora,
+        vendedor: ben.vendedor,
+
+        valorPlano: ben.valorPlano,
+        comissao: ben.comissao,
+
+        // Robust date formatting
+        desde: ben.created_at ? format(new Date(ben.created_at), "dd/MM/yyyy", { locale: ptBR }) : "Data Inválida",
+        vigencia: ben.vigencia ? format(new Date(ben.vigencia?.substring(0, 10) + "T12:00:00Z"), "dd/MM/yyyy", { locale: ptBR }) : "N/D",
+      };
+    }) as Beneficiario[],
+  });
+
+  const handleVerDocumento = (url?: string) => {
+    if (!url) {
+      toast({
+        title: "Arquivo não disponível",
+        description: "O documento não foi encontrado ou ainda não foi processado.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('data:')) {
+      window.open(url, '_blank');
+    } else {
+      const backendUrl = import.meta.env.VITE_API_URL || 'https://uniseg-main.onrender.com/api';
+      const baseUrl = backendUrl.replace('/api', '');
+      const fullUrl = url.startsWith('/') ? `${baseUrl}${url}` : `${baseUrl}/${url}`;
+      window.open(fullUrl, '_blank');
+    }
+  };
+
+  // ... (deleteMutation, handleEdit, handleDelete, confirmDelete remain same) ...
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => beneficiariosAPI.delete(id),
+    onSuccess: () => {
+      toast({ title: "Sucesso", description: `Beneficiário excluído com sucesso.` });
+      queryClient.invalidateQueries({ queryKey: ["beneficiarios"] });
+      setBeneficiarioToDelete(null);
+      setOpenDeleteAlert(false);
+    },
+    onError: (error) => toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }),
+  });
+
+  const handleEdit = (ben: Beneficiario) => {
+    setSelectedBeneficiario(ben);
+    setOpenEditDialog(true);
+  };
+  const handleDelete = (ben: Beneficiario) => {
+    setBeneficiarioToDelete(ben);
+    setOpenDeleteAlert(true);
+  };
+  const confirmDelete = () => {
+    if (beneficiarioToDelete) deleteMutation.mutate(beneficiarioToDelete.id);
+  };
+
+  // New Mutation for Anexar Boleto
+  const anexarBoletoMutation = useMutation({
+    mutationFn: (data: { id: string, nome: string, url: string }) =>
+      financeiroAPI.anexarBoleto(data.id, data.nome, data.url),
+    onSuccess: () => {
+      toast({ title: "✅ Comprovante anexado!", description: `Pagamento enviado para análise do financeiro.` });
+      // Invalidate both financeiro and pending payments list if needed, though mostly financeiro
+      queryClient.invalidateQueries({ queryKey: ["pagamentos"] });
+      setModalAnexar(null);
+      setArquivoSelecionado(null);
+    },
+    onError: (error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
+  });
+
+  const rejeitarPagamentoMutation = useMutation({
+    mutationFn: (id: string) => financeiroAPI.rejeitarPagamento(id),
+    onSuccess: () => {
+      toast({ title: "❌ Comprovante Rejeitado", description: "O status voltou para pendente e o arquivo foi removido." });
+      queryClient.invalidateQueries({ queryKey: ["pagamentos"] });
+      queryClient.invalidateQueries({ queryKey: ["beneficiarios"] });
+    },
+    onError: (error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
+  });
+
+  const excluirPagamentoMutation = useMutation({
+    mutationFn: (id: string) => financeiroAPI.delete(id),
+    onSuccess: () => {
+      toast({ title: "🗑️ Pagamento Excluído", description: "O registro foi removido do sistema." });
+      queryClient.invalidateQueries({ queryKey: ["pagamentos"] });
+      queryClient.invalidateQueries({ queryKey: ["beneficiarios"] });
+    },
+    onError: (error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
+  });
+
+  const handleAnexarBoleto = async () => {
+    if (!modalAnexar || !arquivoSelecionado) return;
+
+    try {
+      const file = arquivoSelecionado;
+
+      // 1. Upload to Node Backend API
+      const { publicUrl } = await financeiroAPI.uploadBoleto(file);
+
+      // 2. Update database via API
+      anexarBoletoMutation.mutate({
+        id: modalAnexar.id,
+        nome: file.name,
+        url: publicUrl
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro no upload",
+        description: error.message || "Não foi possível enviar o arquivo.",
+        variant: "destructive"
+      });
+    }
+  };
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) setArquivoSelecionado(file);
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) setArquivoSelecionado(file);
+  };
+
+  const beneficiariosData = beneficiarios || [];
   const stats = {
-    ativos: beneficiarios.filter(b => b.status === "ativo").length,
-    inadimplentes: beneficiarios.filter(b => b.status === "inadimplente").length,
-    inativos: beneficiarios.filter(b => b.status === "inativo").length,
+    ativos: beneficiariosData.filter(b => b.status === "ativo").length,
+    inadimplentes: beneficiariosData.filter(b => b.status === "inadimplente").length,
+    inativos: beneficiariosData.filter(b => b.status === "inativo").length,
   };
 
   return (
     <AppLayout>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="space-y-8"
-      >
-        {/* Header */}
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
-        >
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+        {/* Header ... */}
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl lg:text-4xl font-bold text-foreground">
-              Beneficiários
-            </h1>
-            <p className="text-muted-foreground text-lg mt-1">
-              Gerencie os beneficiários dos planos
-            </p>
+            <h1 className="text-3xl lg:text-4xl font-bold text-foreground">Beneficiários</h1>
+            <p className="text-muted-foreground text-lg mt-1">Gerencie os beneficiários dos planos</p>
           </div>
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            <Button className="bg-gradient-to-r from-accent to-accent/80 hover:from-accent/90 hover:to-accent/70 shadow-lg shadow-accent/25 gap-2">
-              <Plus className="h-4 w-4" />
-              Nova Venda
+            <Button onClick={() => setOpenAddDialog(true)} className="bg-gradient-to-r from-accent to-accent/80 hover:from-accent/90 hover:to-accent/70 shadow-lg shadow-accent/25 gap-2">
+              <Plus className="h-4 w-4" /> Nova Venda
             </Button>
           </motion.div>
         </motion.div>
 
-        {/* Stats */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="grid gap-4 sm:grid-cols-3"
-        >
-          {[
-            { label: "Ativos", value: stats.ativos, icon: UserCheck, color: "success", trend: "+12" },
-            { label: "Inadimplentes", value: stats.inadimplentes, icon: TrendingDown, color: "destructive", trend: "-3" },
-            { label: "Inativos", value: stats.inativos, icon: Users, color: "muted", trend: "0" },
-          ].map((stat, index) => (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 + index * 0.1 }}
-              whileHover={{ y: -4 }}
-            >
-              <Card className="border-0 shadow-lg shadow-foreground/5 bg-card/80 backdrop-blur-sm overflow-hidden group">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground font-medium">{stat.label}</p>
-                      <div className="flex items-baseline gap-2 mt-1">
-                        <p className="text-3xl font-bold">{stat.value}</p>
-                        <span className={cn(
-                          "text-xs font-semibold px-1.5 py-0.5 rounded",
-                          stat.color === "success" && "bg-success/15 text-success",
-                          stat.color === "destructive" && "bg-destructive/15 text-destructive",
-                          stat.color === "muted" && "bg-muted text-muted-foreground",
-                        )}>
-                          {stat.trend}
-                        </span>
-                      </div>
-                    </div>
-                    <div className={cn(
-                      "h-14 w-14 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110",
-                      stat.color === "success" && "bg-success/10 text-success",
-                      stat.color === "destructive" && "bg-destructive/10 text-destructive",
-                      stat.color === "muted" && "bg-muted text-muted-foreground",
-                    )}>
-                      <stat.icon className="h-7 w-7" />
+        {/* Stats ... */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="grid gap-4 sm:grid-cols-3">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} whileHover={{ y: -4 }}>
+            <Card className="border-0 shadow-lg shadow-foreground/5 bg-card/80 backdrop-blur-sm overflow-hidden group">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground font-medium">Ativos</p>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <p className="text-3xl font-bold">{stats.ativos}</p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
+                  <div className="h-14 w-14 rounded-2xl flex items-center justify-center bg-success/10 text-success">
+                    <UserCheck className="h-7 w-7" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} whileHover={{ y: -4 }}>
+            <Card className="border-0 shadow-lg shadow-foreground/5 bg-card/80 backdrop-blur-sm overflow-hidden group">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground font-medium">Inadimplentes</p>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <p className="text-3xl font-bold">{stats.inadimplentes}</p>
+                    </div>
+                  </div>
+                  <div className="h-14 w-14 rounded-2xl flex items-center justify-center bg-destructive/10 text-destructive">
+                    <TrendingDown className="h-7 w-7" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} whileHover={{ y: -4 }}>
+            <Card className="border-0 shadow-lg shadow-foreground/5 bg-card/80 backdrop-blur-sm overflow-hidden group">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground font-medium">Inativos</p>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <p className="text-3xl font-bold">{stats.inativos}</p>
+                    </div>
+                  </div>
+                  <div className="h-14 w-14 rounded-2xl flex items-center justify-center bg-muted text-muted-foreground">
+                    <Users className="h-7 w-7" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
         </motion.div>
 
-        {/* Filters */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
+        {/* Filters ... */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <Card className="border-0 shadow-lg shadow-foreground/5 bg-card/80 backdrop-blur-sm">
             <CardContent className="p-4">
               <div className="flex flex-col gap-4 lg:flex-row">
                 <div className="relative flex-1">
                   <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar por nome ou CPF..."
-                    className="pl-11 h-12 bg-background/50 border-border/50 focus:bg-background transition-colors"
-                    value={busca}
-                    onChange={(e) => setBusca(e.target.value)}
-                  />
+                  <Input placeholder="Buscar por nome ou CPF..." className="pl-11 h-12 bg-background/50 border-border/50 focus:bg-background transition-colors" value={busca} onChange={(e) => setBusca(e.target.value)} />
                 </div>
                 <div className="flex gap-2 flex-wrap items-center">
-                  <Select value={filtroVendedor} onValueChange={setFiltroVendedor}>
+                  <Select value={filtroVendedor} onValueChange={setFiltroVendedor} disabled={loadingVendedores}>
                     <SelectTrigger className="w-48 h-10 bg-background/50">
-                      <SelectValue placeholder="Filtrar por vendedor" />
+                      <SelectValue placeholder={loadingVendedores ? "Carregando vendedores..." : "Filtrar por vendedor"} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="todos">Todos os vendedores</SelectItem>
-                      {vendedores.map((v) => (
-                        <SelectItem key={v.id} value={v.id.toString()}>
-                          {v.nome}
-                        </SelectItem>
-                      ))}
+                      {vendedores?.map((v) => <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  {[
-                    { key: "todos", label: "Todos" },
-                    { key: "ativo", label: "Ativos" },
-                    { key: "inadimplente", label: "Inadimplentes" },
-                    { key: "inativo", label: "Inativos" },
-                  ].map((f) => (
-                    <Button
-                      key={f.key}
-                      variant={filtro === f.key ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setFiltro(f.key)}
-                      className={cn(
-                        "transition-all",
-                        filtro === f.key && "shadow-lg shadow-primary/25"
-                      )}
-                    >
-                      {f.label}
-                    </Button>
+                  {[{ key: "todos", label: "Todos" }, { key: "ativo", label: "Ativos" }, { key: "inadimplente", label: "Inadimplentes" }, { key: "inativo", label: "Inativos" }].map((f) => (
+                    <Button key={f.key} variant={filtro === f.key ? "default" : "outline"} size="sm" onClick={() => setFiltro(f.key)} className={cn("transition-all", filtro === f.key && "shadow-lg shadow-primary/25")}>{f.label}</Button>
                   ))}
                 </div>
               </div>
@@ -202,116 +368,203 @@ const Beneficiarios = () => {
         </motion.div>
 
         {/* List */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <Card className="border-0 shadow-xl shadow-foreground/5 bg-card/80 backdrop-blur-sm overflow-hidden">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-xl font-semibold">
-                Lista de Beneficiários
-                <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  ({beneficiariosFiltrados.length} registros)
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <motion.div
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                className="divide-y divide-border/50"
-              >
-                <AnimatePresence mode="popLayout">
-                  {beneficiariosFiltrados.map((ben) => {
-                    const vendedor = getVendedor(ben.vendedorId);
-                    const comissaoValor = vendedor ? (ben.valorPlano * vendedor.comissao / 100) : 0;
-                    
-                    return (
-                      <motion.div
-                        key={ben.id}
-                        variants={itemVariants}
-                        layout
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 20 }}
-                        className="group flex items-center justify-between px-6 py-5 hover:bg-muted/30 transition-all cursor-pointer"
-                      >
-                        <div className="flex items-center gap-4">
-                          <motion.div 
-                            className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5"
-                            whileHover={{ scale: 1.1 }}
-                          >
-                            <User className="h-6 w-6 text-primary" />
-                          </motion.div>
-                          <div>
-                            <p className="font-semibold group-hover:text-primary transition-colors">{ben.nome}</p>
-                            <p className="text-sm text-muted-foreground">{ben.cpf}</p>
-                          </div>
-                        </div>
-                        <div className="text-right hidden sm:block">
-                          <p className="font-medium">{ben.plano}</p>
-                          <p className="text-sm text-muted-foreground">{ben.operadora}</p>
-                        </div>
-                        
-                        {/* Vendedor Info */}
-                        <div className="hidden lg:flex items-center gap-3">
-                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/20">
-                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/20">
-                              <span className="text-[10px] font-bold text-accent">
-                                {vendedor?.nome.split(" ").map(n => n[0]).join("").slice(0, 2)}
-                              </span>
+        {isLoading && <div className="flex justify-center items-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-3 text-muted-foreground">Carregando beneficiários...</p></div>}
+
+        {!isLoading && beneficiariosData.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+            <Card className="border-0 shadow-xl shadow-foreground/5 bg-card/80 backdrop-blur-sm overflow-hidden">
+              <CardHeader className="pb-3"><CardTitle className="text-xl font-semibold">Lista de Beneficiários <span className="ml-2 text-sm font-normal text-muted-foreground">({beneficiariosData.length} registros)</span></CardTitle></CardHeader>
+              <CardContent className="p-0">
+                <motion.div variants={containerVariants} initial="hidden" animate="visible" className="divide-y divide-border/50">
+                  <AnimatePresence mode="popLayout">
+                    {beneficiariosData.map((ben) => {
+                      const comissaoValor = ben.valorPlano ? (ben.valorPlano * ben.comissao / 100) : 0;
+                      // Check for payment that needs proof or can be edited
+                      const targetPayment = allPayments?.find(p => p.beneficiario_id === ben.id && (p.status === "pendente" || p.status === "vencido" || p.status === "comprovante_anexado"));
+
+                      return (
+                        <motion.div key={ben.id} variants={itemVariants} layout initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="group flex items-center justify-between px-6 py-5 hover:bg-muted/30 transition-all cursor-pointer">
+                          <div className="flex items-center gap-4">
+                            <motion.div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5" whileHover={{ scale: 1.1 }}><User className="h-6 w-6 text-primary" /></motion.div>
+                            <div>
+                              <p className="font-semibold group-hover:text-primary transition-colors">{ben.nome}</p>
+                              <p className="text-sm text-muted-foreground">{ben.cpf}</p>
                             </div>
-                            <div className="text-left">
-                              <p className="text-xs font-medium text-foreground">{vendedor?.nome}</p>
-                              <div className="flex items-center gap-1 text-accent">
-                                <Percent className="h-3 w-3" />
-                                <span className="text-[10px] font-semibold">{vendedor?.comissao}%</span>
-                                <span className="text-[10px] text-muted-foreground">
-                                  (R$ {comissaoValor.toFixed(2)})
-                                </span>
+                          </div>
+                          <div className="text-right hidden sm:block">
+                            <p className="font-medium">{ben.plano}</p>
+                            <p className="text-sm text-muted-foreground">{ben.operadora}</p>
+                            <div className="text-xs text-muted-foreground mt-1 flex flex-col gap-0.5">
+                              {user?.papel !== 'Vendedor' && (
+                                <p>Vendedor: <span className="font-medium">{ben.vendedor}</span></p>
+                              )}
+                              <p>Vigência: {ben.vigencia}</p>
+                            </div>
+                          </div>
+
+                          {/* Actions Column */}
+                          <div className="flex items-center gap-3 text-right">
+                            {/* Attach/Edit Button */}
+                            {targetPayment && (
+                              <div className="flex items-center gap-2">
+                                {targetPayment.status === "comprovante_anexado" ? (
+                                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 gap-1.5"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleVerDocumento(targetPayment.boleto_url || targetPayment.boleto_anexado);
+                                        }}
+                                      >
+                                        <Eye className="h-3.5 w-3.5" />
+                                        <span className="hidden sm:inline">Ver Comprovante</span>
+                                      </Button>
+
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-8 w-8 text-destructive hover:text-white hover:bg-destructive"
+                                          title={user?.papel === 'Vendedor' ? "Remover Comprovante" : "Rejeitar Comprovante"}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (confirm(user?.papel === 'Vendedor' ? "Deseja remover o arquivo anexado incorretamente?" : "Deseja realmente rejeitar este comprovante?")) {
+                                              rejeitarPagamentoMutation.mutate(targetPayment.id);
+                                            }
+                                          }}
+                                        >
+                                          <XCircle className="h-4 w-4" />
+                                        </Button>
+
+                                        {user?.papel !== 'Vendedor' && (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-8 text-muted-foreground hover:text-white hover:bg-destructive"
+                                            title="Excluir Pagamento"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (confirm("Deseja realmente excluir este pagamento? Esta ação não pode ser desfeita.")) {
+                                                excluirPagamentoMutation.mutate(targetPayment.id);
+                                              }
+                                            }}
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        )}
+                                      </div>
+                                  </motion.div>
+                                ) : (
+                                  <>
+                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                      <Button
+                                        variant="default"
+                                        size="sm"
+                                        className="h-9 gap-2 bg-success hover:bg-success/90 text-white shadow-success/25 shadow-lg"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setModalAnexar({ id: targetPayment.id, nome: ben.nome });
+                                        }}
+                                      >
+                                        <Paperclip className="h-4 w-4" />
+                                        <span className="hidden sm:inline">Anexar Boleto</span>
+                                      </Button>
+                                    </motion.div>
+
+                                    {user?.papel !== 'Vendedor' && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 w-8 text-muted-foreground hover:text-white hover:bg-destructive"
+                                        title="Excluir Pagamento"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (confirm("Deseja realmente excluir este pagamento? Esta ação não pode ser desfeita.")) {
+                                            excluirPagamentoMutation.mutate(targetPayment.id);
+                                          }
+                                        }}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </>
+                                )}
                               </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm text-muted-foreground hidden md:block">
-                            Desde {ben.desde}
-                          </span>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "border font-medium",
-                              statusConfig[ben.status as keyof typeof statusConfig].className
                             )}
-                          >
-                            {statusConfig[ben.status as keyof typeof statusConfig].label}
-                          </Badge>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </AnimatePresence>
-              </motion.div>
-            </CardContent>
-          </Card>
-        </motion.div>
 
-        {beneficiariosFiltrados.length === 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-12"
-          >
-            <div className="w-16 h-16 rounded-full bg-muted mx-auto flex items-center justify-center mb-4">
-              <Search className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <h3 className="font-semibold text-lg">Nenhum beneficiário encontrado</h3>
-            <p className="text-muted-foreground">Tente ajustar os filtros de busca</p>
+                            <span className="text-sm text-muted-foreground hidden md:block">Desde {ben.desde}</span>
+                            {statusConfig[ben.status] ? (
+                              <Badge variant="outline" className={cn("border font-medium", statusConfig[ben.status].className)}>{statusConfig[ben.status].label}</Badge>
+                            ) : (
+                              <Badge variant="outline" className="border font-medium bg-muted text-muted-foreground">{ben.status}</Badge>
+                            )}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"><MoreVertical className="h-4 w-4" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleEdit(ben as Beneficiario)}><Edit className="h-4 w-4 mr-2" />Editar</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleDelete(ben as Beneficiario)} className="text-destructive focus:text-destructive focus:bg-destructive/10"><Trash2 className="h-4 w-4 mr-2" />Excluir</DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+                </motion.div>
+              </CardContent>
+            </Card>
           </motion.div>
         )}
+
+        {!isLoading && beneficiariosData.length === 0 && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12"><div className="w-16 h-16 rounded-full bg-muted mx-auto flex items-center justify-center mb-4"><Search className="h-8 w-8 text-muted-foreground" /></div><h3 className="font-semibold text-lg">Nenhum beneficiário encontrado</h3><p className="text-muted-foreground">Tente ajustar os filtros de busca</p></motion.div>}
+
+        <AddBeneficiarioDialog open={openAddDialog} onOpenChange={setOpenAddDialog} onSuccess={refetch} />
+        {selectedBeneficiario && <EditBeneficiarioDialog open={openEditDialog} onOpenChange={setOpenEditDialog} beneficiario={selectedBeneficiario} onSuccess={refetch} />}
+
+        <AlertDialog open={openDeleteAlert} onOpenChange={setOpenDeleteAlert}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
+              <AlertDialogDescription>Esta ação não pode ser desfeita. Isso excluirá permanentemente o beneficiário <span className="font-semibold text-foreground"> {beneficiarioToDelete?.nome}</span> e todos os pagamentos vinculados.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDelete} disabled={deleteMutation.isPending} className="bg-destructive hover:bg-destructive/90">{deleteMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Excluir Permanentemente"}</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Modal Anexar Boleto (Copied) */}
+        <Dialog open={!!modalAnexar} onOpenChange={() => { setModalAnexar(null); setArquivoSelecionado(null); }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-xl"><div className="h-10 w-10 rounded-xl bg-success/10 flex items-center justify-center"><Paperclip className="h-5 w-5 text-success" /></div>Anexar Comprovante de Pagamento</DialogTitle>
+              <DialogDescription className="text-base">Anexe o comprovante de pagamento de <strong>{modalAnexar?.nome}</strong>. O pagamento será enviado para análise do financeiro.</DialogDescription>
+            </DialogHeader>
+            <motion.div className={cn("border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer", isDragging ? "border-success bg-success/5 scale-[1.02]" : "border-border hover:border-muted-foreground/50 hover:bg-muted/30", arquivoSelecionado && "border-success bg-success/5")} onClick={() => fileInputRef.current?.click()} onDrop={handleDrop} onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+              <input ref={fileInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg" className="hidden" onChange={handleFileChange} />
+              {arquivoSelecionado ? (
+                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="space-y-3">
+                  <div className="flex items-center justify-center"><div className="h-16 w-16 rounded-2xl bg-success/20 flex items-center justify-center"><FileText className="h-8 w-8 text-success" /></div></div>
+                  <p className="font-semibold text-foreground">{arquivoSelecionado.name}</p>
+                  <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); setArquivoSelecionado(null); }}><X className="h-4 w-4 mr-1" />Remover</Button>
+                </motion.div>
+              ) : (
+                <div className="space-y-3"><motion.div animate={{ y: [0, -5, 0] }} transition={{ repeat: Infinity, duration: 2 }}><Upload className="h-12 w-12 mx-auto text-muted-foreground" /></motion.div><div><p className="font-semibold text-foreground">Arraste o arquivo aqui</p><p className="text-sm text-muted-foreground">ou clique para selecionar</p></div><p className="text-xs text-muted-foreground">PDF, PNG ou JPG até 10MB</p></div>
+              )}
+            </motion.div>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => { setModalAnexar(null); setArquivoSelecionado(null); }} disabled={anexarBoletoMutation.isPending}>Cancelar</Button>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button onClick={handleAnexarBoleto} disabled={!arquivoSelecionado || anexarBoletoMutation.isPending} className="bg-success hover:bg-success/90 text-white shadow-lg shadow-success/25">{anexarBoletoMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}Anexar e Enviar para Análise</Button>
+              </motion.div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </motion.div>
     </AppLayout>
   );

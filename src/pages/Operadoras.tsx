@@ -15,7 +15,7 @@ import {
   TrendingUp,
   Users,
   FileText,
-  Sparkles,
+  Loader2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -24,14 +24,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { AddOperadoraDialog } from "@/components/dialogs/AddOperadoraDialog";
+import { EditOperadoraDialog } from "@/components/dialogs/EditOperadoraDialog";
+import { operadorasAPI } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
-const operadoras = [
-  { id: 1, nome: "Unimed", status: "ativa", planos: 12, beneficiarios: 450, cor: "from-emerald-500 to-teal-600" },
-  { id: 2, nome: "Bradesco Saúde", status: "ativa", planos: 8, beneficiarios: 320, cor: "from-red-500 to-rose-600" },
-  { id: 3, nome: "SulAmérica", status: "ativa", planos: 15, beneficiarios: 280, cor: "from-blue-500 to-indigo-600" },
-  { id: 4, nome: "Amil", status: "inativa", planos: 6, beneficiarios: 0, cor: "from-purple-500 to-violet-600" },
-  { id: 5, nome: "NotreDame Intermédica", status: "ativa", planos: 10, beneficiarios: 198, cor: "from-orange-500 to-amber-600" },
-];
+interface Operadora {
+  id: string;
+  nome: string;
+  status: "ativa" | "inativa";
+  planos: number;
+  beneficiarios: number;
+  cor: string;
+}
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -52,20 +59,75 @@ const itemVariants = {
 };
 
 const Operadoras = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [filtro, setFiltro] = useState("todas");
   const [busca, setBusca] = useState("");
+  const [openAddDialog, setOpenAddDialog] = useState(false);
+  const [openEditDialog, setOpenEditDialog] = useState(false);
+  const [selectedOperadora, setSelectedOperadora] = useState<Operadora | undefined>(undefined);
+  const [openDeleteAlert, setOpenDeleteAlert] = useState(false);
+  const [operadoraToDelete, setOperadoraToDelete] = useState<Operadora | null>(null);
 
-  const operadorasFiltradas = operadoras.filter((op) => {
-    const matchStatus = filtro === "todas" || op.status === (filtro === "ativas" ? "ativa" : "inativa");
-    const matchBusca = op.nome.toLowerCase().includes(busca.toLowerCase());
-    return matchStatus && matchBusca;
+  const { data: operadoras, isLoading, refetch } = useQuery<Operadora[], Error, Operadora[], (string | undefined)[]>({
+    queryKey: ["operadoras", filtro],
+    queryFn: () => operadorasAPI.getAll(filtro === "todas" ? undefined : filtro === "ativas" ? "ativa" : "inativa"),
+    onError: (error) => {
+      toast({
+        title: "Erro ao carregar dados",
+        description: `Não foi possível carregar a lista de operadoras: ${error.message}.`,
+        variant: "destructive",
+      });
+    },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => operadorasAPI.delete(id),
+    onSuccess: () => {
+      toast({
+        title: "Sucesso",
+        description: `Operadora ${operadoraToDelete?.nome} excluída com sucesso.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["operadoras"] });
+      setOperadoraToDelete(null);
+      setOpenDeleteAlert(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao excluir",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEdit = (operadora: Operadora) => {
+    setSelectedOperadora(operadora);
+    setOpenEditDialog(true);
+  };
+
+  const handleDelete = (operadora: Operadora) => {
+    setOperadoraToDelete(operadora);
+    setOpenDeleteAlert(true);
+  };
+
+  const confirmDelete = () => {
+    if (operadoraToDelete) {
+      deleteMutation.mutate(operadoraToDelete.id);
+    }
+  };
+
+  // Ensure operadoras is treated as an array for filtering and stats
+  const currentOperadoras = operadoras || [];
+  const operadorasFiltradas = currentOperadoras.filter((op) => 
+    op.nome.toLowerCase().includes(busca.toLowerCase())
+  );
+
   const stats = {
-    total: operadoras.length,
-    ativas: operadoras.filter(o => o.status === "ativa").length,
-    totalBeneficiarios: operadoras.reduce((acc, o) => acc + o.beneficiarios, 0),
-    totalPlanos: operadoras.reduce((acc, o) => acc + o.planos, 0),
+    total: currentOperadoras.length || 0,
+    ativas: currentOperadoras.filter(o => o.status === "ativa").length || 0,
+    totalBeneficiarios: currentOperadoras.reduce((acc, o) => acc + o.beneficiarios, 0) || 0,
+    totalPlanos: currentOperadoras.reduce((acc, o) => acc + o.planos, 0) || 0,
   };
 
   return (
@@ -90,7 +152,10 @@ const Operadoras = () => {
             </p>
           </div>
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            <Button className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg shadow-primary/25 gap-2">
+            <Button 
+              onClick={() => setOpenAddDialog(true)}
+              className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg shadow-primary/25 gap-2"
+            >
               <Plus className="h-4 w-4" />
               Nova Operadora
             </Button>
@@ -112,8 +177,16 @@ const Operadoras = () => {
               transition={{ delay: index * 0.1 }}
               whileHover={{ y: -4 }}
             >
-              <Card className="border-0 shadow-lg shadow-foreground/5 bg-card/80 backdrop-blur-sm overflow-hidden group">
-                <CardContent className="p-5">
+              <Card className="border-0 shadow-lg shadow-foreground/5 bg-card/80 backdrop-blur-sm overflow-hidden group relative">
+                <div className={cn(
+                  "absolute inset-0 opacity-5",
+                  stat.color === "primary" && "bg-gradient-to-br from-primary to-primary/50",
+                  stat.color === "success" && "bg-gradient-to-br from-success to-success/50",
+                  stat.color === "accent" && "bg-gradient-to-br from-accent to-accent/50",
+                  stat.color === "warning" && "bg-gradient-to-br from-warning to-warning/50",
+                  stat.color === "destructive" && "bg-gradient-to-br from-destructive to-destructive/50",
+                )} />
+                <CardContent className="relative p-5">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground font-medium">{stat.label}</p>
@@ -125,6 +198,7 @@ const Operadoras = () => {
                       stat.color === "success" && "bg-success/10 text-success",
                       stat.color === "accent" && "bg-accent/10 text-accent",
                       stat.color === "warning" && "bg-warning/10 text-warning",
+                      stat.color === "destructive" && "bg-destructive/10 text-destructive",
                     )}>
                       <stat.icon className="h-6 w-6" />
                     </div>
@@ -170,99 +244,113 @@ const Operadoras = () => {
           </Card>
         </motion.div>
 
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex justify-center items-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="ml-3 text-muted-foreground">Carregando operadoras...</p>
+          </div>
+        )}
+
         {/* Grid */}
-        <motion.div 
-          variants={containerVariants}
-          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-        >
-          <AnimatePresence mode="popLayout">
-            {operadorasFiltradas.map((op, index) => (
-              <motion.div
-                key={op.id}
-                variants={itemVariants}
-                layout
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                whileHover={{ y: -8 }}
-                transition={{ type: "spring", stiffness: 300, damping: 24 }}
-              >
-                <Card className="group border-0 shadow-lg shadow-foreground/5 bg-card/80 backdrop-blur-sm overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl">
-                  {/* Colored top bar */}
-                  <div className={cn("h-1.5 bg-gradient-to-r", op.cor)} />
-                  
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-4">
-                        <motion.div 
-                          className={cn(
-                            "h-14 w-14 rounded-2xl bg-gradient-to-br flex items-center justify-center text-white shadow-lg",
-                            op.cor
-                          )}
-                          whileHover={{ rotate: [0, -5, 5, 0] }}
-                          transition={{ duration: 0.4 }}
-                        >
-                          <Building2 className="h-7 w-7" />
-                        </motion.div>
-                        <div>
-                          <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">
-                            {op.nome}
-                          </h3>
-                          <Badge
-                            variant="outline"
+        {!isLoading && operadorasFiltradas.length > 0 && (
+          <motion.div 
+            variants={containerVariants}
+            className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          >
+            <AnimatePresence mode="popLayout">
+              {operadorasFiltradas.map((op, index) => (
+                <motion.div
+                  key={op.id}
+                  variants={itemVariants}
+                  layout
+                  initial="hidden"
+                  animate="visible"
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  whileHover={{ y: -8 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 24 }}
+                >
+                  <Card className="group border-0 shadow-lg shadow-foreground/5 bg-card/80 backdrop-blur-sm overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl">
+                    {/* Colored top bar */}
+                    <div className={cn("h-1.5 bg-gradient-to-r", op.cor)} />
+                    
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-4">
+                          <motion.div 
                             className={cn(
-                              "mt-1 border font-medium",
-                              op.status === "ativa"
-                                ? "bg-success/15 text-success border-success/30"
-                                : "bg-muted text-muted-foreground border-muted-foreground/30"
+                              "h-14 w-14 rounded-2xl bg-gradient-to-br flex items-center justify-center text-white shadow-lg",
+                              op.cor
                             )}
+                            whileHover={{ rotate: [0, -5, 5, 0] }}
+                            transition={{ duration: 0.4 }}
                           >
-                            {op.status === "ativa" ? "Ativa" : "Inativa"}
-                          </Badge>
+                            <Building2 className="h-7 w-7" />
+                          </motion.div>
+                          <div>
+                            <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">
+                              {op.nome}
+                            </h3>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "mt-1 border font-medium",
+                                op.status === "ativa"
+                                  ? "bg-success/15 text-success border-success/30"
+                                  : "bg-muted text-muted-foreground border-muted-foreground/30"
+                              )}
+                            >
+                              {op.status === "ativa" ? "Ativa" : "Inativa"}
+                            </Badge>
+                          </div>
+                        </div>
+                        
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEdit(op)}>
+                              <Edit className="h-4 w-4 mr-2" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleDelete(op)}
+                              className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4 mt-6">
+                        <div className="text-center p-3 rounded-xl bg-muted/50">
+                          <p className="text-2xl font-bold text-primary">{op.planos}</p>
+                          <p className="text-xs text-muted-foreground font-medium">Planos</p>
+                        </div>
+                        <div className="text-center p-3 rounded-xl bg-muted/50">
+                          <p className="text-2xl font-bold text-accent">{op.beneficiarios}</p>
+                          <p className="text-xs text-muted-foreground font-medium">Beneficiários</p>
                         </div>
                       </div>
-                      
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
-                            <Edit className="h-4 w-4 mr-2" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive">
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Excluir
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
+        )}
 
-                    <div className="grid grid-cols-2 gap-4 mt-6">
-                      <div className="text-center p-3 rounded-xl bg-muted/50">
-                        <p className="text-2xl font-bold text-primary">{op.planos}</p>
-                        <p className="text-xs text-muted-foreground font-medium">Planos</p>
-                      </div>
-                      <div className="text-center p-3 rounded-xl bg-muted/50">
-                        <p className="text-2xl font-bold text-accent">{op.beneficiarios}</p>
-                        <p className="text-xs text-muted-foreground font-medium">Beneficiários</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </motion.div>
-
-        {operadorasFiltradas.length === 0 && (
+        {/* Empty State */}
+        {!isLoading && operadorasFiltradas.length === 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -275,6 +363,48 @@ const Operadoras = () => {
             <p className="text-muted-foreground">Tente ajustar os filtros de busca</p>
           </motion.div>
         )}
+
+        <AddOperadoraDialog 
+          open={openAddDialog} 
+          onOpenChange={setOpenAddDialog}
+          onSuccess={refetch}
+        />
+        
+        {selectedOperadora && (
+          <EditOperadoraDialog 
+            open={openEditDialog} 
+            onOpenChange={setOpenEditDialog}
+            operadora={selectedOperadora}
+            onSuccess={refetch}
+          />
+        )}
+
+        {/* Delete Confirmation Alert */}
+        <AlertDialog open={openDeleteAlert} onOpenChange={setOpenDeleteAlert}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta ação não pode ser desfeita. Isso excluirá permanentemente a operadora 
+                <span className="font-semibold text-foreground"> {operadoraToDelete?.nome}</span> e todos os planos e beneficiários vinculados.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={confirmDelete}
+                disabled={deleteMutation.isPending}
+                className="bg-destructive hover:bg-destructive/90"
+              >
+                {deleteMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  "Excluir Permanentemente"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </motion.div>
     </AppLayout>
   );

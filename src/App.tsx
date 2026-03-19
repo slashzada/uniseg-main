@@ -12,6 +12,7 @@ import Planos from "./pages/Planos";
 import Beneficiarios from "./pages/Beneficiarios";
 import Financeiro from "./pages/Financeiro";
 import Configuracoes from "./pages/Configuracoes";
+import Comissoes from "./pages/Comissoes"; // Import new page
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -60,7 +61,7 @@ const App = () => (
             <Route
               path="/financeiro"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={["Admin", "Financeiro"]}>
                   <Financeiro />
                 </ProtectedRoute>
               }
@@ -68,8 +69,16 @@ const App = () => (
             <Route
               path="/configuracoes"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={["Admin", "Financeiro"]}>
                   <Configuracoes />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/comissoes" // New route
+              element={
+                <ProtectedRoute allowedRoles={["Admin", "Financeiro"]}>
+                  <Comissoes />
                 </ProtectedRoute>
               }
             />
